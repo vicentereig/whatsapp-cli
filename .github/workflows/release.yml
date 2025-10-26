@@ -1,0 +1,155 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  tests:
+    name: Run tests
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - name: Go test
+        run: go test ./...
+
+  build-linux:
+    name: Build Linux (${{ matrix.arch }})
+    runs-on: ubuntu-latest
+    needs: tests
+    strategy:
+      matrix:
+        arch: [amd64, arm64]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - name: Install cross-compiler
+        if: matrix.arch == 'arm64'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gcc-aarch64-linux-gnu
+      - name: Build and package
+        run: |
+          set -euo pipefail
+          mkdir -p dist
+          export CGO_ENABLED=1
+          export GOOS=linux
+          export GOARCH=${{ matrix.arch }}
+          if [ "${{ matrix.arch }}" = "arm64" ]; then
+            export CC=aarch64-linux-gnu-gcc
+          fi
+          BINARY="whatsapp-cli-linux-${{ matrix.arch }}"
+          go build -o "dist/${BINARY}" .
+          chmod +x "dist/${BINARY}"
+          tar -C dist -czf "dist/${BINARY}.tar.gz" "${BINARY}"
+          rm "dist/${BINARY}"
+          (cd dist && sha256sum "${BINARY}.tar.gz" > "${BINARY}.tar.gz.sha256")
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: linux-${{ matrix.arch }}
+          path: dist/*
+
+  build-macos:
+    name: Build macOS (${{ matrix.arch }})
+    runs-on: macos-latest
+    needs: tests
+    strategy:
+      matrix:
+        arch: [amd64, arm64]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - name: Build and package
+        run: |
+          set -euo pipefail
+          mkdir -p dist
+          export CGO_ENABLED=1
+          export GOOS=darwin
+          export GOARCH=${{ matrix.arch }}
+          BINARY="whatsapp-cli-darwin-${{ matrix.arch }}"
+          go build -o "dist/${BINARY}" .
+          chmod +x "dist/${BINARY}"
+          tar -C dist -czf "dist/${BINARY}.tar.gz" "${BINARY}"
+          rm "dist/${BINARY}"
+          (cd dist && shasum -a 256 "${BINARY}.tar.gz" > "${BINARY}.tar.gz.sha256")
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: macos-${{ matrix.arch }}
+          path: dist/*
+
+  build-windows:
+    name: Build Windows (amd64)
+    runs-on: windows-latest
+    needs: tests
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - name: Build and package
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path dist | Out-Null
+          $env:CGO_ENABLED = "1"
+          $env:GOOS = "windows"
+          $env:GOARCH = "amd64"
+          $binary = "whatsapp-cli-windows-amd64.exe"
+          go build -o "dist/$binary" .
+          $archive = "whatsapp-cli-windows-amd64.zip"
+          Compress-Archive -Path "dist/$binary" -DestinationPath "dist/$archive"
+          Remove-Item "dist/$binary"
+          $hash = (Get-FileHash "dist/$archive" -Algorithm SHA256).Hash.ToLower()
+          "$hash  $archive" | Out-File -FilePath "dist/$archive.sha256" -Encoding utf8
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-amd64
+          path: dist/*
+
+  publish:
+    name: Publish release
+    runs-on: ubuntu-latest
+    needs:
+      - build-linux
+      - build-macos
+      - build-windows
+    steps:
+      - name: Download artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: release
+      - name: Prepare release bundle
+        run: |
+          set -euo pipefail
+          mkdir -p release-files
+          find release -type f -name '*.tar.gz' -exec mv {} release-files/ \;
+          find release -type f -name '*.zip' -exec mv {} release-files/ \;
+          find release -type f -name '*.sha256' -exec cat {} \; > release-files/checksums.txt
+      - name: Create GitHub release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            release-files/*.tar.gz
+            release-files/*.zip
+            release-files/checksums.txt

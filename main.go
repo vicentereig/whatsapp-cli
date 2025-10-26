@@ -42,7 +42,7 @@ Examples:
 
 func main() {
 	if len(os.Args) < 2 {
-		fmt.Fprintln(os.Stderr, usage)
+		fmt.Fprint(os.Stderr, usage)
 		os.Exit(1)
 	}
 
@@ -53,7 +53,7 @@ func main() {
 	// Get command
 	args := flag.Args()
 	if len(args) == 0 {
-		fmt.Fprintln(os.Stderr, usage)
+		fmt.Fprint(os.Stderr, usage)
 		os.Exit(1)
 	}
 
