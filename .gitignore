@@ -4,10 +4,10 @@ whatsapp-cli-*
 *.exe
 
 # Storage (contains sensitive session data)
-store/
+/store/
 
 # Test artifacts
-testdata/
+/testdata/
 *.db
 *.db-shm
 *.db-wal
