@@ -139,7 +139,26 @@ whatsapp-cli auth
 
 **Session Duration**: ~20 days before re-authentication required
 
-### Step 2: Basic Operations
+### Step 2: Sync Messages
+
+Before you can list or search messages, you need to sync them from WhatsApp:
+
+```bash
+# Start syncing messages (run this in the background or a separate terminal)
+whatsapp-cli sync
+# Press Ctrl+C when done syncing
+```
+
+**What happens:**
+1. Connects to WhatsApp and stays connected
+2. Downloads message history from WhatsApp servers
+3. Receives new messages in real-time
+4. Stores everything in `./store/messages.db`
+5. Runs until you press Ctrl+C
+
+**Tip**: Run sync in a tmux/screen session or as a background service to continuously receive messages.
+
+### Step 3: Basic Operations
 
 ```bash
 # List your chats
@@ -150,6 +169,9 @@ whatsapp-cli contacts search --query "John"
 
 # Send a message
 whatsapp-cli send --to 1234567890 --message "Hello from CLI!"
+
+# Search messages
+whatsapp-cli messages search --query "meeting"
 ```
 
 ---
@@ -206,6 +228,93 @@ whatsapp-cli auth
 # Scan QR code with phone
 # ✓ Successfully authenticated!
 ```
+
+---
+
+### Command: `sync`
+
+**⚠️ IMPORTANT**: This command must be run to populate the message database. Without running sync, `messages list` and `messages search` will return empty results.
+
+Continuously sync messages from WhatsApp to local database. This command:
+- Downloads message history from WhatsApp servers
+- Receives new incoming messages in real-time
+- Stores all messages in SQLite database
+- Runs until you press Ctrl+C
+
+**Syntax:**
+```bash
+whatsapp-cli sync
+```
+
+**Parameters:** None
+
+**Returns:** (on exit via Ctrl+C)
+```json
+{
+  "success": true,
+  "data": {
+    "synced": true,
+    "messages_count": 1234
+  },
+  "error": null
+}
+```
+
+**Behavior:**
+- Connects to WhatsApp (authenticates if needed)
+- Registers event handlers for incoming messages and history sync
+- Processes `*events.Message` for real-time messages
+- Processes `*events.HistorySync` for message history batches
+- Stores all messages in `store/messages.db`
+- Updates progress to stderr (doesn't interfere with JSON output)
+- Runs indefinitely until interrupted (Ctrl+C)
+- Gracefully disconnects on exit
+
+**Progress Output (stderr):**
+```
+🚀 Starting WhatsApp sync...
+✓ Connected to WhatsApp
+🔄 Listening for messages... (Press Ctrl+C to stop)
+📜 Processing history sync (42 conversations)...
+💬 Synced 1234 messages...
+^C
+✓ Sync completed. Total messages synced: 1234
+```
+
+**Examples:**
+
+```bash
+# Basic sync - run in foreground
+whatsapp-cli sync
+
+# Run in background (recommended for continuous syncing)
+whatsapp-cli sync > sync.json 2> sync.log &
+
+# Run in tmux/screen session
+tmux new -s whatsapp
+whatsapp-cli sync
+# Detach with Ctrl+B D
+
+# Run with custom storage directory
+whatsapp-cli --store /var/lib/whatsapp sync
+
+# Stop sync gracefully
+kill -INT <pid>
+# Or press Ctrl+C in foreground
+```
+
+**Use Cases:**
+1. **Initial Setup**: Run once to download all message history
+2. **Continuous Sync**: Run as background service to receive messages
+3. **Periodic Sync**: Run via cron to update messages periodically
+4. **Development**: Run in terminal while testing queries
+
+**Notes:**
+- Message history sync may take time depending on message count
+- Duplicate messages are handled by SQLite PRIMARY KEY constraints
+- Media files are NOT downloaded, only metadata (type, filename, URL)
+- Connection stays alive indefinitely until interrupted
+- Safe to restart - won't duplicate messages
 
 ---
 
@@ -1363,7 +1472,7 @@ A: Not yet. Read-only access to groups currently.
 A: Not in current version. Feature planned for future release.
 
 **Q: Can I receive real-time messages?**
-A: Messages are stored when CLI is running with active connection. Daemon mode planned for future.
+A: Yes! Run `whatsapp-cli sync` to continuously receive and store messages. Run it in the background or tmux session.
 
 ### Technical
 
@@ -1377,7 +1486,7 @@ A: Yes, but QR code authentication requires terminal access. Use `-it` flags for
 A: Respects system proxy settings. Set `HTTP_PROXY` and `HTTPS_PROXY` environment variables.
 
 **Q: Can I access messages from before installing CLI?**
-A: No, only messages received after CLI is running are stored. For history, export from WhatsApp app.
+A: Yes! When you run `whatsapp-cli sync`, it downloads message history from WhatsApp servers. The amount of history depends on WhatsApp's server-side retention.
 
 ### Privacy & Security
 

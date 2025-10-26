@@ -122,6 +122,19 @@ func (w *WAClient) AddEventHandler(handler func(interface{})) {
 	w.client.AddEventHandler(handler)
 }
 
+// StartSync connects to WhatsApp and registers event handlers for syncing messages
+func (w *WAClient) StartSync(ctx context.Context, eventHandler func(interface{})) error {
+	// Add event handler before connecting
+	w.client.AddEventHandler(eventHandler)
+
+	// Connect to WhatsApp
+	if err := w.Connect(ctx); err != nil {
+		return err
+	}
+
+	return nil
+}
+
 func parseJID(recipient string) (types.JID, error) {
 	// If already a JID, parse it
 	if contains(recipient, "@") {
@@ -145,7 +158,7 @@ func contains(s, substr string) bool {
 }
 
 // Helper to handle incoming messages
-func HandleMessage(msg *events.Message) (id, chatJID, sender, content string, timestamp int64, isFromMe bool) {
+func HandleMessage(msg *events.Message) (id, chatJID, sender, content string, timestamp int64, isFromMe bool, mediaType, filename, url string) {
 	id = msg.Info.ID
 	chatJID = msg.Info.Chat.String()
 	sender = msg.Info.Sender.User
@@ -157,6 +170,25 @@ func HandleMessage(msg *events.Message) (id, chatJID, sender, content string, ti
 			content = text
 		} else if extText := msg.Message.GetExtendedTextMessage(); extText != nil {
 			content = extText.GetText()
+		} else if img := msg.Message.GetImageMessage(); img != nil {
+			mediaType = "image"
+			filename = img.GetCaption()
+			url = img.GetURL()
+			content = img.GetCaption()
+		} else if video := msg.Message.GetVideoMessage(); video != nil {
+			mediaType = "video"
+			filename = video.GetCaption()
+			url = video.GetURL()
+			content = video.GetCaption()
+		} else if audio := msg.Message.GetAudioMessage(); audio != nil {
+			mediaType = "audio"
+			url = audio.GetURL()
+			content = "[Audio]"
+		} else if doc := msg.Message.GetDocumentMessage(); doc != nil {
+			mediaType = "document"
+			filename = doc.GetFileName()
+			url = doc.GetURL()
+			content = doc.GetCaption()
 		}
 	}
 

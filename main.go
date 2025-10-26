@@ -5,7 +5,9 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"os/signal"
 	"path/filepath"
+	"syscall"
 	"time"
 
 	"github.com/vicente/whatsapp-cli/internal/commands"
@@ -18,6 +20,7 @@ Usage:
 
 Commands:
   auth                              Authenticate with WhatsApp (scan QR code)
+  sync                              Sync messages continuously (run until Ctrl+C)
   messages list [--chat JID]        List messages
   messages search --query TEXT      Search messages
   contacts search --query TEXT      Search contacts
@@ -29,6 +32,7 @@ Global Options:
 
 Examples:
   whatsapp-cli auth
+  whatsapp-cli sync                    # Keep running to sync messages
   whatsapp-cli messages list --chat 1234567890@s.whatsapp.net --limit 20
   whatsapp-cli messages search --query "meeting"
   whatsapp-cli contacts search --query "John"
@@ -69,7 +73,21 @@ func main() {
 	}
 	defer app.Close()
 
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+	// Use different timeout for sync command
+	var ctx context.Context
+	var cancel context.CancelFunc
+	if command == "sync" {
+		// For sync, use signal-based cancellation
+		ctx, cancel = context.WithCancel(context.Background())
+		sigChan := make(chan os.Signal, 1)
+		signal.Notify(sigChan, os.Interrupt, syscall.SIGTERM)
+		go func() {
+			<-sigChan
+			cancel()
+		}()
+	} else {
+		ctx, cancel = context.WithTimeout(context.Background(), 5*time.Minute)
+	}
 	defer cancel()
 
 	var result string
@@ -77,6 +95,9 @@ func main() {
 	switch command {
 	case "auth":
 		result = app.Auth(ctx)
+
+	case "sync":
+		result = app.Sync(ctx)
 
 	case "messages":
 		messagesCmd := flag.NewFlagSet("messages", flag.ExitOnError)
