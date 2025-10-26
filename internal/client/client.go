@@ -71,7 +71,8 @@ func (w *WAClient) Authenticate(ctx context.Context) error {
 	for evt := range qrChan {
 		if evt.Event == "code" {
 			fmt.Println("\nScan this QR code with your WhatsApp app:")
-			qrterminal.Generate(evt.Code, qrterminal.L, os.Stdout)
+			// Use Medium error correction and compact output
+			qrterminal.GenerateHalfBlock(evt.Code, qrterminal.M, os.Stdout)
 		} else if evt.Event == "success" {
 			fmt.Println("\n✓ Successfully authenticated!")
 			return nil
