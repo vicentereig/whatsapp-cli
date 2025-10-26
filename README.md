@@ -114,6 +114,7 @@ go install github.com/vicentereig/whatsapp-cli@latest
 - Version tags use semantic versioning (`vMAJOR.MINOR.PATCH`). Use a specific tag (e.g., `v1.0.0`) with `go install github.com/vicentereig/whatsapp-cli@v1.0.0` for reproducible builds.
 - Pre-built artifacts for Linux/macOS/Windows are published on the [GitHub Releases](https://github.com/vicentereig/whatsapp-cli/releases) page. Each archive is paired with SHA-256 entries inside `checksums.txt`; run `shasum -a 256 -c checksums.txt --ignore-missing` to verify before installing.
 - Binaries are named `whatsapp-cli-<os>-<arch>` (Windows adds `.exe`). After extraction, mark them executable (`chmod +x`) and place them somewhere in your `PATH` such as `/usr/local/bin/whatsapp-cli`.
+- Each uploaded file (including `checksums.txt`) also has Sigstore cosign signatures (`.sig`) and certificates (`.pem`). To verify, run `cosign verify-blob --certificate <file>.pem --signature <file>.sig <file>`; GitHub Actions uses OIDC identities, so you can enforce provenance on verification.
 - To build from source, follow Method 2. That path is ideal when you want to audit the code, tweak compilation flags, or test changes before tagging a release.
 - Maintainers can follow `docs/RELEASE.md` for the step-by-step process that drives `go install`, source builds, and GitHub Release automation.
 
@@ -180,6 +181,24 @@ whatsapp-cli send --to 1234567890 --message "Hello from CLI!"
 
 # Search messages
 whatsapp-cli messages search --query "meeting"
+```
+
+### Step 4: Check the Installed Version
+
+```bash
+whatsapp-cli version
+```
+
+**Example Output:**
+
+```json
+{
+  "success": true,
+  "data": {
+    "version": "v1.0.0"
+  },
+  "error": null
+}
 ```
 
 ---

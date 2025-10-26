@@ -34,11 +34,13 @@ The workflow in `.github/workflows/release.yml` runs automatically for tags that
    - Linux: `amd64`, `arm64`
    - macOS: `amd64`, `arm64`
    - Windows: `amd64`
-3. Packages binaries as:
+3. Embeds the tag (e.g., `v1.0.0`) into the binary via Go ldflags and smoke-tests each artifact by running `whatsapp-cli version` (QEMU is used where native execution is not possible).
+4. Packages binaries as:
    - Linux/macOS: `whatsapp-cli-<os>-<arch>.tar.gz`
    - Windows: `whatsapp-cli-windows-amd64.zip`
-4. Generates SHA-256 checksum files for each archive and merges them into `checksums.txt`.
-5. Publishes the artifacts and checksum bundle to the GitHub Release associated with the tag.
+5. Generates SHA-256 checksum files for each archive and merges them into `checksums.txt`.
+6. Signs every uploaded file (tarballs/zips/checksums) with Sigstore cosign using GitHub’s OIDC identity, producing `.sig` and `.pem` companions.
+7. Publishes the artifacts, checksums, and cosign metadata to the GitHub Release associated with the tag.
 
 ## Pre-Built Binary Distribution
 
@@ -60,6 +62,20 @@ tar -xzf whatsapp-cli-linux-amd64.tar.gz
 chmod +x whatsapp-cli-linux-amd64
 sudo mv whatsapp-cli-linux-amd64 /usr/local/bin/whatsapp-cli
 ```
+
+To validate provenance with Sigstore:
+
+```bash
+cosign verify-blob \
+  --certificate whatsapp-cli-linux-amd64.tar.gz.pem \
+  --signature whatsapp-cli-linux-amd64.tar.gz.sig \
+  whatsapp-cli-linux-amd64.tar.gz
+```
+
+Expected identity:
+
+- Issuer: `https://token.actions.githubusercontent.com`
+- Subject/workflow: `repo:vicentereig/whatsapp-cli:ref:refs/tags/v*`
 
 ## Supporting `go install`
 

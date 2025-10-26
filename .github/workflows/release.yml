@@ -7,6 +7,7 @@ on:
 
 permissions:
   contents: write
+  id-token: write
 
 jobs:
   tests:
@@ -36,11 +37,14 @@ jobs:
         uses: actions/setup-go@v5
         with:
           go-version-file: go.mod
-      - name: Install cross-compiler
-        if: matrix.arch == 'arm64'
+      - name: Install toolchain
         run: |
           sudo apt-get update
-          sudo apt-get install -y gcc-aarch64-linux-gnu
+          if [ "${{ matrix.arch }}" = "arm64" ]; then
+            sudo apt-get install -y gcc-aarch64-linux-gnu qemu-user
+          else
+            sudo apt-get install -y qemu-user
+          fi
       - name: Build and package
         run: |
           set -euo pipefail
@@ -52,8 +56,13 @@ jobs:
             export CC=aarch64-linux-gnu-gcc
           fi
           BINARY="whatsapp-cli-linux-${{ matrix.arch }}"
-          go build -o "dist/${BINARY}" .
+          go build -ldflags "-X main.version=${GITHUB_REF_NAME}" -o "dist/${BINARY}" .
           chmod +x "dist/${BINARY}"
+          if [ "${{ matrix.arch }}" = "arm64" ]; then
+            qemu-aarch64 "./dist/${BINARY}" version >/dev/null
+          else
+            "./dist/${BINARY}" version >/dev/null
+          fi
           tar -C dist -czf "dist/${BINARY}.tar.gz" "${BINARY}"
           rm "dist/${BINARY}"
           (cd dist && sha256sum "${BINARY}.tar.gz" > "${BINARY}.tar.gz.sha256")
@@ -65,11 +74,15 @@ jobs:
 
   build-macos:
     name: Build macOS (${{ matrix.arch }})
-    runs-on: macos-latest
+    runs-on: ${{ matrix.runner }}
     needs: tests
     strategy:
       matrix:
-        arch: [amd64, arm64]
+        include:
+          - arch: amd64
+            runner: macos-13
+          - arch: arm64
+            runner: macos-14
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -85,8 +98,9 @@ jobs:
           export GOOS=darwin
           export GOARCH=${{ matrix.arch }}
           BINARY="whatsapp-cli-darwin-${{ matrix.arch }}"
-          go build -o "dist/${BINARY}" .
+          go build -ldflags "-X main.version=${GITHUB_REF_NAME}" -o "dist/${BINARY}" .
           chmod +x "dist/${BINARY}"
+          "./dist/${BINARY}" version >/dev/null
           tar -C dist -czf "dist/${BINARY}.tar.gz" "${BINARY}"
           rm "dist/${BINARY}"
           (cd dist && shasum -a 256 "${BINARY}.tar.gz" > "${BINARY}.tar.gz.sha256")
@@ -115,7 +129,8 @@ jobs:
           $env:GOOS = "windows"
           $env:GOARCH = "amd64"
           $binary = "whatsapp-cli-windows-amd64.exe"
-          go build -o "dist/$binary" .
+          go build -ldflags "-X main.version=$env:GITHUB_REF_NAME" -o "dist/$binary" .
+          & "dist/$binary" version | Out-Null
           $archive = "whatsapp-cli-windows-amd64.zip"
           Compress-Archive -Path "dist/$binary" -DestinationPath "dist/$archive"
           Remove-Item "dist/$binary"
@@ -146,6 +161,18 @@ jobs:
           find release -type f -name '*.tar.gz' -exec mv {} release-files/ \;
           find release -type f -name '*.zip' -exec mv {} release-files/ \;
           find release -type f -name '*.sha256' -exec cat {} \; > release-files/checksums.txt
+      - name: Install cosign
+        uses: sigstore/cosign-installer@v3
+      - name: Sign artifacts
+        env:
+          COSIGN_EXPERIMENTAL: "1"
+          COSIGN_YES: "true"
+        run: |
+          set -euo pipefail
+          for file in release-files/*.tar.gz release-files/*.zip release-files/checksums.txt; do
+            [ -f "$file" ] || continue
+            cosign sign-blob --yes --output-signature "${file}.sig" --output-certificate "${file}.pem" "$file"
+          done
       - name: Create GitHub release
         uses: softprops/action-gh-release@v2
         with:
@@ -153,3 +180,5 @@ jobs:
             release-files/*.tar.gz
             release-files/*.zip
             release-files/checksums.txt
+            release-files/*.sig
+            release-files/*.pem

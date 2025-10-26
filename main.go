@@ -13,6 +13,11 @@ import (
 	"github.com/vicente/whatsapp-cli/internal/commands"
 )
 
+var (
+	// version is overridden at build time via -ldflags "-X main.version=X.Y.Z"
+	version = "dev"
+)
+
 const usage = `WhatsApp CLI - Command line interface for WhatsApp
 
 Usage:
@@ -26,6 +31,7 @@ Commands:
   contacts search --query TEXT      Search contacts
   chats list                        List chats
   send --to RECIPIENT --message TEXT    Send a message
+  version                           Print CLI version information
 
 Global Options:
   --store DIR    Storage directory (default: ./store)
@@ -61,6 +67,12 @@ func main() {
 	subcommand := ""
 	if len(args) > 1 {
 		subcommand = args[1]
+	}
+
+	if command == "version" {
+		fmt.Printf(`{"success":true,"data":{"version":"%s"},"error":null}
+`, version)
+		return
 	}
 
 	// Create app
