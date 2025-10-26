@@ -1,0 +1,25 @@
+# Binaries
+whatsapp-cli
+whatsapp-cli-*
+*.exe
+
+# Storage (contains sensitive session data)
+store/
+
+# Test artifacts
+testdata/
+*.db
+*.db-shm
+*.db-wal
+
+# Go
+*.test
+*.out
+vendor/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
