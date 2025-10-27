@@ -41,6 +41,32 @@ func TestStoreChat(t *testing.T) {
 	assert.NoError(t, err)
 }
 
+func TestStoreChatDoesNotOverwriteFriendlyWithJID(t *testing.T) {
+	store := setupTestDB(t)
+	jid := "1234@s.whatsapp.net"
+
+	require.NoError(t, store.StoreChat(jid, "John Doe", time.Now()))
+	require.NoError(t, store.StoreChat(jid, jid, time.Now().Add(time.Minute)))
+
+	chats, err := store.ListChats(ListChatsParams{Limit: 1})
+	require.NoError(t, err)
+	require.NotEmpty(t, chats)
+	assert.Equal(t, "John Doe", chats[0].Name)
+}
+
+func TestStoreChatUpgradesNameFromJID(t *testing.T) {
+	store := setupTestDB(t)
+	jid := "5678@s.whatsapp.net"
+
+	require.NoError(t, store.StoreChat(jid, jid, time.Now()))
+	require.NoError(t, store.StoreChat(jid, "Jane Smith", time.Now().Add(time.Minute)))
+
+	chats, err := store.ListChats(ListChatsParams{Limit: 1})
+	require.NoError(t, err)
+	require.NotEmpty(t, chats)
+	assert.Equal(t, "Jane Smith", chats[0].Name)
+}
+
 func TestStoreMessage(t *testing.T) {
 	store := setupTestDB(t)
 

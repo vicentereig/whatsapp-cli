@@ -22,12 +22,12 @@ type Message struct {
 }
 
 type Chat struct {
-	JID              string     `json:"jid"`
-	Name             string     `json:"name"`
-	LastMessageTime  time.Time  `json:"last_message_time"`
-	LastMessage      *string    `json:"last_message,omitempty"`
-	LastSender       *string    `json:"last_sender,omitempty"`
-	LastIsFromMe     *bool      `json:"last_is_from_me,omitempty"`
+	JID             string    `json:"jid"`
+	Name            string    `json:"name"`
+	LastMessageTime time.Time `json:"last_message_time"`
+	LastMessage     *string   `json:"last_message,omitempty"`
+	LastSender      *string   `json:"last_sender,omitempty"`
+	LastIsFromMe    *bool     `json:"last_is_from_me,omitempty"`
 }
 
 type Contact struct {
@@ -41,13 +41,13 @@ type MessageStore struct {
 }
 
 type ListMessagesParams struct {
-	After       *time.Time
-	Before      *time.Time
-	Sender      *string
-	ChatJID     *string
-	Query       *string
-	Limit       int
-	Page        int
+	After   *time.Time
+	Before  *time.Time
+	Sender  *string
+	ChatJID *string
+	Query   *string
+	Limit   int
+	Page    int
 }
 
 type ListChatsParams struct {
@@ -108,7 +108,14 @@ func (s *MessageStore) Close() error {
 
 func (s *MessageStore) StoreChat(jid, name string, lastMessageTime time.Time) error {
 	_, err := s.db.Exec(
-		"INSERT OR REPLACE INTO chats (jid, name, last_message_time) VALUES (?, ?, ?)",
+		`INSERT INTO chats (jid, name, last_message_time) VALUES (?, ?, ?)
+		ON CONFLICT(jid) DO UPDATE SET
+			name = CASE
+				WHEN excluded.name IS NOT NULL AND excluded.name != '' AND (excluded.name != chats.jid OR chats.name IS NULL OR chats.name = '' OR chats.name = chats.jid) THEN excluded.name
+				WHEN chats.name IS NULL OR chats.name = '' THEN excluded.name
+				ELSE chats.name
+			END,
+			last_message_time = excluded.last_message_time`,
 		jid, name, lastMessageTime,
 	)
 	return err

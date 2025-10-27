@@ -4,7 +4,9 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/vicente/whatsapp-cli/internal/client"
@@ -14,11 +16,12 @@ import (
 )
 
 type App struct {
-	client *client.WAClient
-	store  *store.MessageStore
+	client  *client.WAClient
+	store   *store.MessageStore
+	version string
 }
 
-func NewApp(storeDir string) (*App, error) {
+func NewApp(storeDir, version string) (*App, error) {
 	cli, err := client.NewWAClient(storeDir)
 	if err != nil {
 		return nil, err
@@ -31,8 +34,9 @@ func NewApp(storeDir string) (*App, error) {
 	}
 
 	return &App{
-		client: cli,
-		store:  st,
+		client:  cli,
+		store:   st,
+		version: resolveVersion(version, gitDescribe),
 	}, nil
 }
 
@@ -115,8 +119,14 @@ func (a *App) SendMessage(ctx context.Context, recipient, message string) string
 		chatJID = recipient + "@s.whatsapp.net"
 	}
 
+	// Resolve a friendly chat name when available (falls back to JID/recipient)
+	chatName := a.client.ResolveChatName(ctx, chatJID, nil)
+	if chatName == "" {
+		chatName = recipient
+	}
+
 	// Store chat if needed
-	a.store.StoreChat(chatJID, recipient, timestamp)
+	a.store.StoreChat(chatJID, chatName, timestamp)
 	a.store.StoreMessage(
 		fmt.Sprintf("%d", timestamp.Unix()),
 		chatJID,
@@ -147,6 +157,12 @@ func contains(s, substr string) bool {
 func (a *App) Sync(ctx context.Context) string {
 	messageCount := 0
 
+	version := a.version
+	if strings.TrimSpace(version) == "" {
+		version = "unknown"
+	}
+	fmt.Fprintf(os.Stderr, "ℹ️  whatsapp-cli version: %s\n", version)
+
 	// Create event handler
 	eventHandler := func(evt interface{}) {
 		switch v := evt.(type) {
@@ -154,9 +170,8 @@ func (a *App) Sync(ctx context.Context) string {
 			// Extract message details
 			id, chatJID, sender, content, timestamp, isFromMe, mediaType, filename, url := client.HandleMessage(v)
 
-			// Get chat name (use sender for now, could be enhanced with contact lookup)
-			chatName := sender
-			if chatJID != "" {
+			chatName := a.client.ResolveChatName(ctx, chatJID, v)
+			if chatName == "" && chatJID != "" {
 				chatName = chatJID
 			}
 
@@ -187,7 +202,10 @@ func (a *App) Sync(ctx context.Context) string {
 				chatJID := conv.GetId()
 				chatName := conv.GetName()
 				if chatName == "" {
-					chatName = chatJID
+					chatName = a.client.ResolveChatName(ctx, chatJID, nil)
+					if chatName == "" {
+						chatName = chatJID
+					}
 				}
 
 				// Process messages in this conversation
@@ -282,4 +300,31 @@ func (a *App) Sync(ctx context.Context) string {
 		"synced":         true,
 		"messages_count": messageCount,
 	})
+}
+
+func resolveVersion(version string, describeFn func() (string, error)) string {
+	if strings.TrimSpace(version) != "" && version != "dev" {
+		return version
+	}
+
+	if describeFn != nil {
+		if gitVersion, err := describeFn(); err == nil && strings.TrimSpace(gitVersion) != "" {
+			return gitVersion
+		}
+	}
+
+	if strings.TrimSpace(version) == "" {
+		return "unknown"
+	}
+	return version
+}
+
+func gitDescribe() (string, error) {
+	cmd := exec.Command("git", "describe", "--tags", "--dirty", "--always")
+	cmd.Env = os.Environ()
+	output, err := cmd.Output()
+	if err != nil {
+		return "", err
+	}
+	return strings.TrimSpace(string(output)), nil
 }

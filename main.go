@@ -15,7 +15,7 @@ import (
 
 var (
 	// version is overridden at build time via -ldflags "-X main.version=X.Y.Z"
-	version = "dev"
+	version = "1.1.0"
 )
 
 const usage = `WhatsApp CLI - Command line interface for WhatsApp
@@ -77,7 +77,7 @@ func main() {
 
 	// Create app
 	absStoreDir, _ := filepath.Abs(*storeDir)
-	app, err := commands.NewApp(absStoreDir)
+	app, err := commands.NewApp(absStoreDir, version)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, `{"success":false,"data":null,"error":"Failed to initialize: %v"}
 `, err)

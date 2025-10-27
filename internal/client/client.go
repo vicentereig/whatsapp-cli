@@ -5,9 +5,10 @@ import (
 	"database/sql"
 	"fmt"
 	"os"
+	"strings"
 
-	"github.com/mdp/qrterminal"
 	_ "github.com/mattn/go-sqlite3"
+	"github.com/mdp/qrterminal"
 	"go.mau.fi/whatsmeow"
 	waProto "go.mau.fi/whatsmeow/binary/proto"
 	"go.mau.fi/whatsmeow/store/sqlstore"
@@ -18,9 +19,11 @@ import (
 )
 
 type WAClient struct {
-	client       *whatsmeow.Client
-	storeDir     string
-	eventHandler func(interface{})
+	client          *whatsmeow.Client
+	storeDir        string
+	eventHandler    func(interface{})
+	contactLookup   func(ctx context.Context, user types.JID) (types.ContactInfo, error)
+	groupInfoLookup func(ctx context.Context, jid types.JID) (*types.GroupInfo, error)
 }
 
 func NewWAClient(storeDir string) (*WAClient, error) {
@@ -49,8 +52,10 @@ func NewWAClient(storeDir string) (*WAClient, error) {
 	client := whatsmeow.NewClient(deviceStore, logger)
 
 	return &WAClient{
-		client:   client,
-		storeDir: storeDir,
+		client:          client,
+		storeDir:        storeDir,
+		contactLookup:   contactLookupFunc(client),
+		groupInfoLookup: groupInfoLookupFunc(client),
 	}, nil
 }
 
@@ -120,6 +125,85 @@ func (w *WAClient) SendMessage(ctx context.Context, recipient, message string) e
 
 func (w *WAClient) AddEventHandler(handler func(interface{})) {
 	w.client.AddEventHandler(handler)
+}
+
+func contactLookupFunc(cli *whatsmeow.Client) func(ctx context.Context, user types.JID) (types.ContactInfo, error) {
+	if cli == nil || cli.Store == nil || cli.Store.Contacts == nil {
+		return nil
+	}
+	return func(ctx context.Context, user types.JID) (types.ContactInfo, error) {
+		return cli.Store.Contacts.GetContact(ctx, user)
+	}
+}
+
+func groupInfoLookupFunc(cli *whatsmeow.Client) func(ctx context.Context, jid types.JID) (*types.GroupInfo, error) {
+	if cli == nil {
+		return nil
+	}
+	return func(ctx context.Context, jid types.JID) (*types.GroupInfo, error) {
+		// whatsmeow's GetGroupInfo does not accept a context, so we ignore ctx here.
+		info, err := cli.GetGroupInfo(jid)
+		return info, err
+	}
+}
+
+func bestContactName(info types.ContactInfo) string {
+	if !info.Found {
+		return ""
+	}
+	if name := strings.TrimSpace(info.FullName); name != "" {
+		return name
+	}
+	if name := strings.TrimSpace(info.FirstName); name != "" {
+		return name
+	}
+	if name := strings.TrimSpace(info.BusinessName); name != "" {
+		return name
+	}
+	if name := strings.TrimSpace(info.PushName); name != "" && name != "-" {
+		return name
+	}
+	if name := strings.TrimSpace(info.RedactedPhone); name != "" {
+		return name
+	}
+	return ""
+}
+
+func (w *WAClient) ResolveChatName(ctx context.Context, chatJID string, msg *events.Message) string {
+	if chatJID == "" && msg != nil {
+		chatJID = msg.Info.Chat.String()
+	}
+	fallback := chatJID
+
+	parsed, err := types.ParseJID(chatJID)
+	if err == nil {
+		// Group chats
+		if parsed.Server == types.GroupServer || parsed.IsBroadcastList() {
+			if w.groupInfoLookup != nil {
+				if info, err := w.groupInfoLookup(ctx, parsed); err == nil && info != nil {
+					if name := strings.TrimSpace(info.GroupName.Name); name != "" {
+						return name
+					}
+				}
+			}
+		} else {
+			if w.contactLookup != nil {
+				if info, err := w.contactLookup(ctx, parsed.ToNonAD()); err == nil {
+					if name := bestContactName(info); name != "" {
+						return name
+					}
+				}
+			}
+		}
+	}
+
+	if msg != nil {
+		if name := strings.TrimSpace(msg.Info.PushName); name != "" && name != "-" {
+			return name
+		}
+	}
+
+	return fallback
 }
 
 // StartSync connects to WhatsApp and registers event handlers for syncing messages

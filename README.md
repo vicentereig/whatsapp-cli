@@ -2,7 +2,7 @@
 
 > **For Humans & LLMs**: This document contains comprehensive information about the WhatsApp CLI tool, including installation, usage, API reference, examples, architecture, and troubleshooting. It is designed to be parsed by both humans and large language models.
 
-**Version**: 1.0.0
+**Version**: 1.1.0
 **Repository**: https://github.com/vicentereig/whatsapp-cli
 **License**: MIT
 **Language**: Go 1.24+
@@ -195,7 +195,7 @@ whatsapp-cli version
 {
   "success": true,
   "data": {
-    "version": "v1.0.0"
+    "version": "v1.1.0"
   },
   "error": null
 }
@@ -1561,5 +1561,5 @@ MIT License - see [LICENSE](LICENSE) file
 ---
 
 **Last Updated**: 2025-10-26
-**Version**: 1.0.0
+**Version**: 1.1.0
 **Documentation**: https://github.com/vicentereig/whatsapp-cli/blob/main/README.md
