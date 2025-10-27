@@ -1383,6 +1383,16 @@ go test -race ./...
 go build -o whatsapp-cli-dev .
 ```
 
+### Building with a Local Module Cache
+
+If your environment can't write to the global Go module cache (common in sandboxes or CI), point `GOMODCACHE` to a writable directory within the repo before building:
+
+```bash
+GOMODCACHE=$(pwd)/.gomodcache go build ./...
+```
+
+This command compiles the full project and stores downloaded modules under `.gomodcache`, keeping the workspace self-contained.
+
 ### Running Tests
 
 ```bash
