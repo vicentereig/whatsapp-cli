@@ -15,6 +15,7 @@ whatsapp-cli-*
 # Go
 *.test
 *.out
+.gomodcache/
 vendor/
 
 # IDE
