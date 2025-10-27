@@ -15,7 +15,7 @@ import (
 
 var (
 	// version is overridden at build time via -ldflags "-X main.version=X.Y.Z"
-	version = "1.1.0"
+	version = "1.2.0"
 )
 
 const usage = `WhatsApp CLI - Command line interface for WhatsApp
@@ -31,6 +31,7 @@ Commands:
   contacts search --query TEXT      Search contacts
   chats list                        List chats
   send --to RECIPIENT --message TEXT    Send a message
+  media download --message-id ID [--chat JID] [--output PATH]   Download media for a message
   version                           Print CLI version information
 
 Global Options:
@@ -164,6 +165,27 @@ func main() {
 			os.Exit(1)
 		}
 		result = app.SendMessage(ctx, *to, *message)
+
+	case "media":
+		if subcommand != "download" {
+			fmt.Fprintf(os.Stderr, "{\"success\":false,\"data\":null,\"error\":\"Unknown media subcommand: %s\"}\n", subcommand)
+			os.Exit(1)
+		}
+		downCmd := flag.NewFlagSet("media download", flag.ExitOnError)
+		messageID := downCmd.String("message-id", "", "message identifier")
+		chatJID := downCmd.String("chat", "", "chat JID (optional)")
+		outputPath := downCmd.String("output", "", "output file or directory")
+		downCmd.Parse(args[2:])
+
+		if *messageID == "" {
+			fmt.Fprintln(os.Stderr, `{"success":false,"data":null,"error":"--message-id required"}`)
+			os.Exit(1)
+		}
+		var chatPtr *string
+		if *chatJID != "" {
+			chatPtr = chatJID
+		}
+		result = app.DownloadMedia(ctx, *messageID, chatPtr, *outputPath)
 
 	default:
 		fmt.Fprintf(os.Stderr, `{"success":false,"data":null,"error":"Unknown command: %s"}

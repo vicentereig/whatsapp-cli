@@ -614,9 +614,68 @@ whatsapp-cli send --to 1234567890 --message "Server status: $(uptime)"
 - Supports Unicode (emojis, international characters)
 
 **Limitations:**
-- Text messages only (no media support yet)
+- Send command currently supports text only (download attachments via `media download`)
 - No delivery/read receipt information returned
 - Maximum message length: WhatsApp's standard limit (~65,536 characters)
+
+---
+
+### Command: `media download`
+
+Download media attachments (images, videos, audio, documents) that were synced into the local database.
+
+**Syntax:**
+```bash
+whatsapp-cli media download --message-id ID [--chat JID] [--output PATH]
+```
+
+**Parameters:**
+
+| Flag | Type | Required | Description |
+|------|------|----------|-------------|
+| `--message-id` | string | Yes | Message identifier from `messages list/search` |
+| `--chat` | string | No | Chat JID to disambiguate duplicate message IDs |
+| `--output` | string | No | Destination file or directory (defaults to auto-structured path) |
+
+**Default storage:**
+- Media is stored next to the SQLite databases under `STORE/media/{chat}/{message}/{media_type}/filename`
+- Paths are sanitized automatically
+- If `--output` points to a directory, the original filename (or message ID-based fallback) is used
+
+**Return value:**
+```json
+{
+  "success": true,
+  "data": {
+    "message_id": "ABCD1234",
+    "chat_jid": "1234567890@s.whatsapp.net",
+    "path": "/path/to/media/1234567890@s.whatsapp.net/ABCD1234/image/ABCD1234.jpg",
+    "bytes": 204800,
+    "media_type": "image",
+    "mime_type": "image/jpeg",
+    "downloaded_at": "2025-02-01T12:34:56.789Z"
+  },
+  "error": null
+}
+```
+
+**Examples:**
+```bash
+# Download image using auto-organised directory layout
+whatsapp-cli media download --message-id ABCD1234
+
+# Save into a specific directory (filename auto-generated)
+whatsapp-cli media download --message-id ABCD1234 --output /tmp/media/
+
+# Save using explicit path and disambiguate by chat JID
+whatsapp-cli media download --message-id XYZ987 --chat 1234567890@s.whatsapp.net --output ~/Downloads/report.pdf
+```
+
+**Notes:**
+- Requires that `whatsapp-cli sync` has captured the message metadata
+- The sync loop downloads media concurrently in the background without blocking new messages
+- Re-running the command overwrites the existing file with a fresh download
+- Errors include metadata issues (expired link, missing direct path) or filesystem permissions
 
 ---
 

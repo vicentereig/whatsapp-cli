@@ -2,11 +2,15 @@ package commands
 
 import (
 	"context"
+	"database/sql"
+	"errors"
 	"fmt"
+	"mime"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/vicente/whatsapp-cli/internal/client"
@@ -16,9 +20,12 @@ import (
 )
 
 type App struct {
-	client  *client.WAClient
-	store   *store.MessageStore
-	version string
+	client          *client.WAClient
+	store           *store.MessageStore
+	version         string
+	storeDir        string
+	mediaDownloader func(ctx context.Context, info store.MessageDownloadInfo, targetPath string) (int64, error)
+	mediaWorker     *mediaDownloadWorker
 }
 
 func NewApp(storeDir, version string) (*App, error) {
@@ -33,14 +40,20 @@ func NewApp(storeDir, version string) (*App, error) {
 		return nil, err
 	}
 
-	return &App{
-		client:  cli,
-		store:   st,
-		version: resolveVersion(version, gitDescribe),
-	}, nil
+	app := &App{
+		client:   cli,
+		store:    st,
+		version:  resolveVersion(version, gitDescribe),
+		storeDir: storeDir,
+	}
+	app.mediaDownloader = app.downloadMediaWithClient
+	return app, nil
 }
 
 func (a *App) Close() {
+	if a.mediaWorker != nil {
+		a.mediaWorker.Stop()
+	}
 	if a.client != nil {
 		a.client.Disconnect()
 	}
@@ -134,7 +147,8 @@ func (a *App) SendMessage(ctx context.Context, recipient, message string) string
 		message,
 		timestamp,
 		true,
-		"", "", "", nil, nil, nil, 0,
+		"", "", "", "", "",
+		nil, nil, nil, 0,
 	)
 
 	return output.Success(map[string]interface{}{
@@ -142,6 +156,313 @@ func (a *App) SendMessage(ctx context.Context, recipient, message string) string
 		"recipient": recipient,
 		"message":   message,
 	})
+}
+
+func (a *App) DownloadMedia(ctx context.Context, messageID string, chatJID *string, outputPath string) string {
+	messageID = strings.TrimSpace(messageID)
+	if messageID == "" {
+		return output.Error(fmt.Errorf("message ID is required"))
+	}
+
+	info, err := a.store.GetMessageForDownload(messageID, chatJID)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return output.Error(fmt.Errorf("message %s not found", messageID))
+		}
+		return output.Error(err)
+	}
+
+	if strings.TrimSpace(info.MediaType) == "" || strings.TrimSpace(info.DirectPath) == "" || len(info.MediaKey) == 0 {
+		return output.Error(fmt.Errorf("message %s has no downloadable media", messageID))
+	}
+
+	targetPath, bytesWritten, downloadedAt, err := a.downloadMediaAndPersist(ctx, info, outputPath)
+	if err != nil {
+		return output.Error(err)
+	}
+
+	response := map[string]interface{}{
+		"message_id":    messageID,
+		"chat_jid":      info.ChatJID,
+		"path":          targetPath,
+		"bytes":         bytesWritten,
+		"media_type":    info.MediaType,
+		"mime_type":     info.MimeType,
+		"downloaded_at": downloadedAt.Format(time.RFC3339Nano),
+	}
+	if info.ChatName != nil && *info.ChatName != "" {
+		response["chat_name"] = *info.ChatName
+	}
+	return output.Success(response)
+}
+
+func (a *App) resolveOutputPath(info store.MessageDownloadInfo, requested string) (string, error) {
+	filename := sanitizeFilename(filenameFor(info))
+	if filename == "" {
+		filename = "file"
+	}
+
+	if strings.TrimSpace(requested) != "" {
+		cleaned := requested
+		if !filepath.IsAbs(cleaned) {
+			if abs, err := filepath.Abs(cleaned); err == nil {
+				cleaned = abs
+			}
+		}
+		if info, err := os.Stat(cleaned); err == nil && info.IsDir() {
+			return filepath.Join(cleaned, filename), nil
+		}
+		if strings.HasSuffix(cleaned, string(os.PathSeparator)) {
+			return filepath.Join(cleaned, filename), nil
+		}
+		return cleaned, nil
+	}
+
+	baseDir := filepath.Join(a.storeDir, "media", sanitizeSegment(info.ChatJID), sanitizeSegment(info.ID))
+	if info.MediaType != "" {
+		baseDir = filepath.Join(baseDir, sanitizeSegment(info.MediaType))
+	}
+	if abs, err := filepath.Abs(baseDir); err == nil {
+		baseDir = abs
+	}
+	return filepath.Join(baseDir, filename), nil
+}
+
+var pathReplacer = strings.NewReplacer(
+	"/", "_",
+	"\\", "_",
+	":", "_",
+	"@", "_",
+	"?", "_",
+	"*", "_",
+	"<", "_",
+	">", "_",
+	"|", "_",
+)
+
+func sanitizeSegment(seg string) string {
+	seg = strings.TrimSpace(seg)
+	if seg == "" {
+		return "unknown"
+	}
+	seg = pathReplacer.Replace(seg)
+	seg = strings.ReplaceAll(seg, "..", "_")
+	return seg
+}
+
+func sanitizeFilename(name string) string {
+	name = strings.TrimSpace(name)
+	if name == "" {
+		return "file"
+	}
+	name = pathReplacer.Replace(name)
+	name = strings.ReplaceAll(name, string(os.PathSeparator), "_")
+	name = strings.ReplaceAll(name, "..", "_")
+	return name
+}
+
+func filenameFor(info store.MessageDownloadInfo) string {
+	if trimmed := strings.TrimSpace(info.Filename); trimmed != "" {
+		return trimmed
+	}
+	if ext := extensionForMime(info.MimeType); ext != "" {
+		return info.ID + ext
+	}
+	switch strings.ToLower(strings.TrimSpace(info.MediaType)) {
+	case "image":
+		return info.ID + ".jpg"
+	case "video":
+		return info.ID + ".mp4"
+	case "audio":
+		return info.ID + ".ogg"
+	case "document":
+		return info.ID
+	default:
+		return info.ID
+	}
+}
+
+func extensionForMime(mimeType string) string {
+	mimeType = strings.ToLower(strings.TrimSpace(mimeType))
+	if mimeType == "" {
+		return ""
+	}
+	if exts, err := mime.ExtensionsByType(mimeType); err == nil {
+		for _, ext := range exts {
+			switch ext {
+			case ".jpe":
+				return ".jpg"
+			default:
+				if ext != "" {
+					return ext
+				}
+			}
+		}
+	}
+	switch mimeType {
+	case "image/jpeg":
+		return ".jpg"
+	case "image/png":
+		return ".png"
+	case "image/webp":
+		return ".webp"
+	case "video/mp4":
+		return ".mp4"
+	case "audio/ogg":
+		return ".ogg"
+	case "audio/mpeg":
+		return ".mp3"
+	case "application/pdf":
+		return ".pdf"
+	default:
+		return ""
+	}
+}
+
+func (a *App) downloadMediaWithClient(ctx context.Context, info store.MessageDownloadInfo, targetPath string) (int64, error) {
+	if a.client == nil {
+		return 0, fmt.Errorf("whatsapp client not initialized")
+	}
+	if err := a.client.Connect(ctx); err != nil {
+		return 0, err
+	}
+	req := client.MediaDownloadRequest{
+		DirectPath:    info.DirectPath,
+		MediaKey:      info.MediaKey,
+		FileSHA256:    info.FileSHA256,
+		FileEncSHA256: info.FileEncSHA256,
+		FileLength:    info.FileLength,
+		MediaType:     info.MediaType,
+		MimeType:      info.MimeType,
+	}
+	return a.client.DownloadMediaToFile(ctx, req, targetPath)
+}
+
+func (a *App) downloadMediaAndPersist(ctx context.Context, info store.MessageDownloadInfo, requestedPath string) (string, int64, time.Time, error) {
+	finalPath, err := a.resolveOutputPath(info, requestedPath)
+	if err != nil {
+		return "", 0, time.Time{}, err
+	}
+	if err := os.MkdirAll(filepath.Dir(finalPath), 0755); err != nil {
+		return "", 0, time.Time{}, fmt.Errorf("failed to create destination directory: %w", err)
+	}
+
+	downloader := a.mediaDownloader
+	if downloader == nil {
+		downloader = a.downloadMediaWithClient
+	}
+
+	bytesWritten, err := downloader(ctx, info, finalPath)
+	if err != nil {
+		return "", 0, time.Time{}, err
+	}
+
+	now := time.Now().UTC()
+	if err := a.store.MarkMediaDownloaded(info.ID, info.ChatJID, finalPath, now); err != nil {
+		return "", 0, time.Time{}, fmt.Errorf("failed to mark media downloaded: %w", err)
+	}
+
+	return finalPath, bytesWritten, now, nil
+}
+
+func (a *App) processMediaJob(ctx context.Context, job mediaJob) error {
+	if a.store == nil {
+		return fmt.Errorf("message store not initialized")
+	}
+	info, err := a.store.GetMessageForDownload(job.messageID, &job.chatJID)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil
+		}
+		return err
+	}
+	if strings.TrimSpace(info.DirectPath) == "" || len(info.MediaKey) == 0 {
+		return nil
+	}
+	if info.LocalPath != nil {
+		if _, err := os.Stat(*info.LocalPath); err == nil {
+			return nil
+		}
+	}
+	_, _, _, err = a.downloadMediaAndPersist(ctx, info, "")
+	return err
+}
+
+type mediaJob struct {
+	messageID string
+	chatJID   string
+}
+
+type mediaDownloadWorker struct {
+	app     *App
+	workers int
+	jobs    chan mediaJob
+	ctx     context.Context
+	cancel  context.CancelFunc
+	wg      sync.WaitGroup
+}
+
+func newMediaDownloadWorker(app *App, workers int) *mediaDownloadWorker {
+	if workers <= 0 {
+		workers = 2
+	}
+	return &mediaDownloadWorker{
+		app:     app,
+		workers: workers,
+		jobs:    make(chan mediaJob, workers*4),
+	}
+}
+
+func (w *mediaDownloadWorker) Start(ctx context.Context) {
+	if w == nil {
+		return
+	}
+	w.ctx, w.cancel = context.WithCancel(ctx)
+	for i := 0; i < w.workers; i++ {
+		w.wg.Add(1)
+		go w.run()
+	}
+}
+
+func (w *mediaDownloadWorker) run() {
+	defer w.wg.Done()
+	for {
+		select {
+		case <-w.ctx.Done():
+			return
+		case job := <-w.jobs:
+			if err := w.app.processMediaJob(w.ctx, job); err != nil {
+				fmt.Fprintf(os.Stderr, "⚠️  media download failed for %s: %v\n", job.messageID, err)
+			}
+		}
+	}
+}
+
+func (w *mediaDownloadWorker) Enqueue(job mediaJob) {
+	if w == nil || w.ctx == nil {
+		return
+	}
+	select {
+	case w.jobs <- job:
+	case <-w.ctx.Done():
+	default:
+		go func() {
+			select {
+			case w.jobs <- job:
+			case <-w.ctx.Done():
+			}
+		}()
+	}
+}
+
+func (w *mediaDownloadWorker) Stop() {
+	if w == nil {
+		return
+	}
+	if w.cancel != nil {
+		w.cancel()
+	}
+	w.wg.Wait()
 }
 
 func contains(s, substr string) bool {
@@ -163,12 +484,47 @@ func (a *App) Sync(ctx context.Context) string {
 	}
 	fmt.Fprintf(os.Stderr, "ℹ️  whatsapp-cli version: %s\n", version)
 
+	worker := newMediaDownloadWorker(a, 4)
+	worker.Start(ctx)
+	a.mediaWorker = worker
+	defer func() {
+		worker.Stop()
+		if a.mediaWorker == worker {
+			a.mediaWorker = nil
+		}
+	}()
+
 	// Create event handler
 	eventHandler := func(evt interface{}) {
 		switch v := evt.(type) {
 		case *events.Message:
 			// Extract message details
-			id, chatJID, sender, content, timestamp, isFromMe, mediaType, filename, url := client.HandleMessage(v)
+			details := client.HandleMessage(v)
+			id := details.ID
+			chatJID := details.ChatJID
+			sender := details.Sender
+			content := details.Content
+			msgTime := details.Timestamp
+			isFromMe := details.IsFromMe
+			mediaType := ""
+			filename := ""
+			url := ""
+			directPath := ""
+			mimeType := ""
+			var mediaKey, fileSHA256, fileEncSHA256 []byte
+			var fileLength uint64
+
+			if details.Media != nil {
+				mediaType = details.Media.Type
+				filename = details.Media.Filename
+				url = details.Media.URL
+				directPath = details.Media.DirectPath
+				mimeType = details.Media.MimeType
+				mediaKey = details.Media.MediaKey
+				fileSHA256 = details.Media.FileSHA256
+				fileEncSHA256 = details.Media.FileEncSHA256
+				fileLength = details.Media.FileLength
+			}
 
 			chatName := a.client.ResolveChatName(ctx, chatJID, v)
 			if chatName == "" && chatJID != "" {
@@ -176,7 +532,6 @@ func (a *App) Sync(ctx context.Context) string {
 			}
 
 			// Store chat
-			msgTime := time.Unix(timestamp, 0)
 			a.store.StoreChat(chatJID, chatName, msgTime)
 
 			// Store message
@@ -190,8 +545,14 @@ func (a *App) Sync(ctx context.Context) string {
 				mediaType,
 				filename,
 				url,
-				nil, nil, nil, 0,
+				directPath,
+				mimeType,
+				mediaKey, fileSHA256, fileEncSHA256, fileLength,
 			)
+
+			if directPath != "" && len(mediaKey) > 0 {
+				worker.Enqueue(mediaJob{messageID: id, chatJID: chatJID})
+			}
 
 			messageCount++
 			fmt.Fprintf(os.Stderr, "\r💬 Synced %d messages...", messageCount)
@@ -221,41 +582,75 @@ func (a *App) Sync(ctx context.Context) string {
 						sender = histMsg.Key.GetRemoteJid()
 					}
 					isFromMe := histMsg.Key.GetFromMe()
-					timestamp := time.Unix(int64(histMsg.GetMessageTimestamp()), 0)
+					msgTimestamp := time.Unix(int64(histMsg.GetMessageTimestamp()), 0)
 
 					// Extract content
 					content := ""
 					mediaType := ""
 					filename := ""
 					url := ""
+					directPath := ""
+					mimeType := ""
+					var mediaKey, fileSHA256, fileEncSHA256 []byte
+					var fileLength uint64
 
-					if histMsg.Message.GetConversation() != "" {
+					switch {
+					case histMsg.Message.GetConversation() != "":
 						content = histMsg.Message.GetConversation()
-					} else if extText := histMsg.Message.GetExtendedTextMessage(); extText != nil {
+					case histMsg.Message.GetExtendedTextMessage() != nil:
+						extText := histMsg.Message.GetExtendedTextMessage()
 						content = extText.GetText()
-					} else if img := histMsg.Message.GetImageMessage(); img != nil {
+					case histMsg.Message.GetImageMessage() != nil:
+						img := histMsg.Message.GetImageMessage()
 						mediaType = "image"
 						content = img.GetCaption()
 						filename = img.GetCaption()
 						url = img.GetURL()
-					} else if video := histMsg.Message.GetVideoMessage(); video != nil {
+						directPath = img.GetDirectPath()
+						mimeType = img.GetMimetype()
+						mediaKey = img.GetMediaKey()
+						fileSHA256 = img.GetFileSHA256()
+						fileEncSHA256 = img.GetFileEncSHA256()
+						fileLength = img.GetFileLength()
+					case histMsg.Message.GetVideoMessage() != nil:
+						video := histMsg.Message.GetVideoMessage()
 						mediaType = "video"
 						content = video.GetCaption()
 						filename = video.GetCaption()
 						url = video.GetURL()
-					} else if audio := histMsg.Message.GetAudioMessage(); audio != nil {
+						directPath = video.GetDirectPath()
+						mimeType = video.GetMimetype()
+						mediaKey = video.GetMediaKey()
+						fileSHA256 = video.GetFileSHA256()
+						fileEncSHA256 = video.GetFileEncSHA256()
+						fileLength = video.GetFileLength()
+					case histMsg.Message.GetAudioMessage() != nil:
+						audio := histMsg.Message.GetAudioMessage()
 						mediaType = "audio"
 						content = "[Audio]"
 						url = audio.GetURL()
-					} else if doc := histMsg.Message.GetDocumentMessage(); doc != nil {
+						directPath = audio.GetDirectPath()
+						mimeType = audio.GetMimetype()
+						mediaKey = audio.GetMediaKey()
+						fileSHA256 = audio.GetFileSHA256()
+						fileEncSHA256 = audio.GetFileEncSHA256()
+						fileLength = audio.GetFileLength()
+					case histMsg.Message.GetDocumentMessage() != nil:
+						doc := histMsg.Message.GetDocumentMessage()
 						mediaType = "document"
 						content = doc.GetCaption()
 						filename = doc.GetFileName()
 						url = doc.GetURL()
+						directPath = doc.GetDirectPath()
+						mimeType = doc.GetMimetype()
+						mediaKey = doc.GetMediaKey()
+						fileSHA256 = doc.GetFileSHA256()
+						fileEncSHA256 = doc.GetFileEncSHA256()
+						fileLength = doc.GetFileLength()
 					}
 
 					// Store chat
-					a.store.StoreChat(chatJID, chatName, timestamp)
+					a.store.StoreChat(chatJID, chatName, msgTimestamp)
 
 					// Store message
 					a.store.StoreMessage(
@@ -263,13 +658,19 @@ func (a *App) Sync(ctx context.Context) string {
 						chatJID,
 						sender,
 						content,
-						timestamp,
+						msgTimestamp,
 						isFromMe,
 						mediaType,
 						filename,
 						url,
-						nil, nil, nil, 0,
+						directPath,
+						mimeType,
+						mediaKey, fileSHA256, fileEncSHA256, fileLength,
 					)
+
+					if directPath != "" && len(mediaKey) > 0 {
+						worker.Enqueue(mediaJob{messageID: msgID, chatJID: chatJID})
+					}
 
 					messageCount++
 				}
