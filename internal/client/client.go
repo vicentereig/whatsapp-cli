@@ -128,6 +128,10 @@ func (w *WAClient) Connect(ctx context.Context) error {
 		return w.Authenticate(ctx)
 	}
 
+	if w.client.IsConnected() {
+		return nil
+	}
+
 	if err := w.client.Connect(); err != nil {
 		return fmt.Errorf("failed to connect: %v", err)
 	}
