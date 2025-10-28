@@ -41,7 +41,7 @@ jobs:
         run: |
           sudo apt-get update
           if [ "${{ matrix.arch }}" = "arm64" ]; then
-            sudo apt-get install -y gcc-aarch64-linux-gnu qemu-user
+            sudo apt-get install -y gcc-aarch64-linux-gnu qemu-user libc6-arm64-cross
           else
             sudo apt-get install -y qemu-user
           fi
@@ -54,6 +54,7 @@ jobs:
           export GOARCH=${{ matrix.arch }}
           if [ "${{ matrix.arch }}" = "arm64" ]; then
             export CC=aarch64-linux-gnu-gcc
+            export QEMU_LD_PREFIX=/usr/aarch64-linux-gnu
           fi
           BINARY="whatsapp-cli-linux-${{ matrix.arch }}"
           go build -ldflags "-X main.version=${GITHUB_REF_NAME}" -o "dist/${BINARY}" .
