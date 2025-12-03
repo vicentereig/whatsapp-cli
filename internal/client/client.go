@@ -181,8 +181,7 @@ func groupInfoLookupFunc(cli *whatsmeow.Client) func(ctx context.Context, jid ty
 		return nil
 	}
 	return func(ctx context.Context, jid types.JID) (*types.GroupInfo, error) {
-		// whatsmeow's GetGroupInfo does not accept a context, so we ignore ctx here.
-		info, err := cli.GetGroupInfo(jid)
+		info, err := cli.GetGroupInfo(ctx, jid)
 		return info, err
 	}
 }

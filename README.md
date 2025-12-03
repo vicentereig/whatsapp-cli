@@ -1352,6 +1352,25 @@ whatsapp-cli --store /tmp/wa-test auth
 - VPN may interfere with connection
 - Try from different network
 
+### WhatsApp Web Version Bumps (405 / close 1006)
+
+WhatsApp occasionally requires a newer desktop/web build. When that happens, the bundled `whatsmeow` dependency logs `Client outdated (405)` and immediately closes the websocket with code `1006`, so `whatsapp-cli` dies right after scanning the QR.
+
+To fix it:
+
+1. **Bump the dependency:**
+   ```bash
+   go get go.mau.fi/whatsmeow@latest
+   go mod tidy
+   ```
+2. **Rebuild the binary:**
+   ```bash
+   go build -o whatsapp-cli .
+   ```
+3. **Verify:** Run `./whatsapp-cli version` followed by `./whatsapp-cli auth` or `./whatsapp-cli sync`. You should see `✓ Connected to WhatsApp` without any `Client outdated (405)` messages.
+
+If the upstream library has not yet released a new version, monitor `tulir/whatsmeow` issues for `Client outdated (405)` reports; once a fix lands, repeat the steps above to update your local binary.
+
 ### Database Issues
 
 **Problem**: "Database is locked"

@@ -560,7 +560,7 @@ func (a *App) Sync(ctx context.Context) string {
 		case *events.HistorySync:
 			fmt.Fprintf(os.Stderr, "\n📜 Processing history sync (%d conversations)...\n", len(v.Data.Conversations))
 			for _, conv := range v.Data.Conversations {
-				chatJID := conv.GetId()
+				chatJID := conv.GetID()
 				chatName := conv.GetName()
 				if chatName == "" {
 					chatName = a.client.ResolveChatName(ctx, chatJID, nil)
@@ -576,10 +576,10 @@ func (a *App) Sync(ctx context.Context) string {
 					}
 
 					histMsg := msg.Message
-					msgID := histMsg.Key.GetId()
+					msgID := histMsg.Key.GetID()
 					sender := histMsg.Key.GetParticipant()
 					if sender == "" {
-						sender = histMsg.Key.GetRemoteJid()
+						sender = histMsg.Key.GetRemoteJID()
 					}
 					isFromMe := histMsg.Key.GetFromMe()
 					msgTimestamp := time.Unix(int64(histMsg.GetMessageTimestamp()), 0)

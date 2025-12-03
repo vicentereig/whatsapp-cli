@@ -15,7 +15,7 @@ import (
 
 var (
 	// version is overridden at build time via -ldflags "-X main.version=X.Y.Z"
-	version = "1.3.0"
+	version = "1.3.1"
 )
 
 const usage = `WhatsApp CLI - Command line interface for WhatsApp
