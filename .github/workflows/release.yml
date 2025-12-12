@@ -74,16 +74,9 @@ jobs:
           path: dist/*
 
   build-macos:
-    name: Build macOS (${{ matrix.arch }})
-    runs-on: ${{ matrix.runner }}
+    name: Build macOS (universal)
+    runs-on: macos-14
     needs: tests
-    strategy:
-      matrix:
-        include:
-          - arch: amd64
-            runner: macos-13-xlarge
-          - arch: arm64
-            runner: macos-14
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -91,25 +84,47 @@ jobs:
         uses: actions/setup-go@v5
         with:
           go-version-file: go.mod
-      - name: Build and package
+      - name: Build arm64 (native)
         run: |
           set -euo pipefail
           mkdir -p dist
           export CGO_ENABLED=1
           export GOOS=darwin
-          export GOARCH=${{ matrix.arch }}
-          BINARY="whatsapp-cli-darwin-${{ matrix.arch }}"
+          export GOARCH=arm64
+          BINARY="whatsapp-cli-darwin-arm64"
           go build -ldflags "-X main.version=${GITHUB_REF_NAME}" -o "dist/${BINARY}" .
           chmod +x "dist/${BINARY}"
           "./dist/${BINARY}" version >/dev/null
           tar -C dist -czf "dist/${BINARY}.tar.gz" "${BINARY}"
           rm "dist/${BINARY}"
           (cd dist && shasum -a 256 "${BINARY}.tar.gz" > "${BINARY}.tar.gz.sha256")
-      - name: Upload artifact
+      - name: Build amd64 (cross-compile)
+        run: |
+          set -euo pipefail
+          export CGO_ENABLED=1
+          export GOOS=darwin
+          export GOARCH=amd64
+          BINARY="whatsapp-cli-darwin-amd64"
+          go build -ldflags "-X main.version=${GITHUB_REF_NAME}" -o "dist/${BINARY}" .
+          chmod +x "dist/${BINARY}"
+          # Skip smoke test for cross-compiled binary (can't run amd64 on arm64)
+          tar -C dist -czf "dist/${BINARY}.tar.gz" "${BINARY}"
+          rm "dist/${BINARY}"
+          (cd dist && shasum -a 256 "${BINARY}.tar.gz" > "${BINARY}.tar.gz.sha256")
+      - name: Upload arm64 artifact
         uses: actions/upload-artifact@v4
         with:
-          name: macos-${{ matrix.arch }}
-          path: dist/*
+          name: macos-arm64
+          path: |
+            dist/whatsapp-cli-darwin-arm64.tar.gz
+            dist/whatsapp-cli-darwin-arm64.tar.gz.sha256
+      - name: Upload amd64 artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: macos-amd64
+          path: |
+            dist/whatsapp-cli-darwin-amd64.tar.gz
+            dist/whatsapp-cli-darwin-amd64.tar.gz.sha256
 
   build-windows:
     name: Build Windows (amd64)
