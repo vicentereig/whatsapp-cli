@@ -66,7 +66,20 @@ A standalone command-line interface for WhatsApp built on the WhatsApp Web multi
 
 ## Installation
 
-### Method 1: Download Pre-built Binary (Recommended)
+### Method 1: Homebrew (Recommended)
+
+```bash
+brew install vicentereig/tap/whatsapp-cli
+```
+
+Or tap first, then install:
+
+```bash
+brew tap vicentereig/tap
+brew install whatsapp-cli
+```
+
+### Method 2: Download Pre-built Binary
 
 ```bash
 # Linux (x86_64)
@@ -83,7 +96,7 @@ sudo mv whatsapp-cli-mac /usr/local/bin/whatsapp-cli
 # Download whatsapp-cli.exe from releases page
 ```
 
-### Method 2: Build from Source
+### Method 3: Build from Source
 
 ```bash
 # Clone repository
@@ -103,7 +116,7 @@ sudo mv whatsapp-cli /usr/local/bin/
 whatsapp-cli --help
 ```
 
-### Method 3: Install via Go
+### Method 4: Install via Go
 
 ```bash
 go install github.com/vicentereig/whatsapp-cli@latest
@@ -115,7 +128,7 @@ go install github.com/vicentereig/whatsapp-cli@latest
 - Pre-built artifacts for Linux/macOS/Windows are published on the [GitHub Releases](https://github.com/vicentereig/whatsapp-cli/releases) page. Each archive is paired with SHA-256 entries inside `checksums.txt`; run `shasum -a 256 -c checksums.txt --ignore-missing` to verify before installing.
 - Binaries are named `whatsapp-cli-<os>-<arch>` (Windows adds `.exe`). After extraction, mark them executable (`chmod +x`) and place them somewhere in your `PATH` such as `/usr/local/bin/whatsapp-cli`.
 - Each uploaded file (including `checksums.txt`) also has Sigstore cosign signatures (`.sig`) and certificates (`.pem`). To verify, run `cosign verify-blob --certificate <file>.pem --signature <file>.sig <file>`; GitHub Actions uses OIDC identities, so you can enforce provenance on verification.
-- To build from source, follow Method 2. That path is ideal when you want to audit the code, tweak compilation flags, or test changes before tagging a release.
+- To build from source, follow Method 3. That path is ideal when you want to audit the code, tweak compilation flags, or test changes before tagging a release.
 - Maintainers can follow `docs/RELEASE.md` for the step-by-step process that drives `go install`, source builds, and GitHub Release automation.
 
 ---

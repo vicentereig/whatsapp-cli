@@ -183,3 +183,51 @@ jobs:
             release-files/checksums.txt
             release-files/*.sig
             release-files/*.pem
+
+  update-homebrew:
+    name: Update Homebrew formula
+    runs-on: ubuntu-latest
+    needs: publish
+    steps:
+      - name: Checkout tap repository
+        uses: actions/checkout@v4
+        with:
+          repository: vicentereig/homebrew-tap
+          token: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+          path: homebrew-tap
+
+      - name: Update formula
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          BASE_URL="https://github.com/vicentereig/whatsapp-cli/releases/download/${GITHUB_REF_NAME}"
+          FORMULA="homebrew-tap/Formula/whatsapp-cli.rb"
+
+          # Download SHA256 values from release checksums
+          DARWIN_AMD64=$(curl -sL "${BASE_URL}/whatsapp-cli-darwin-amd64.tar.gz.sha256" | awk '{print $1}')
+          DARWIN_ARM64=$(curl -sL "${BASE_URL}/whatsapp-cli-darwin-arm64.tar.gz.sha256" | awk '{print $1}')
+          LINUX_AMD64=$(curl -sL "${BASE_URL}/whatsapp-cli-linux-amd64.tar.gz.sha256" | awk '{print $1}')
+          LINUX_ARM64=$(curl -sL "${BASE_URL}/whatsapp-cli-linux-arm64.tar.gz.sha256" | awk '{print $1}')
+
+          # Update version
+          sed -i "s/version \".*\"/version \"${VERSION}\"/" "$FORMULA"
+
+          # Update SHA256 values (handles both placeholders and existing hashes)
+          sed -i "s/sha256 \"SHA256_DARWIN_AMD64\"/sha256 \"${DARWIN_AMD64}\"/" "$FORMULA"
+          sed -i "s/sha256 \"SHA256_DARWIN_ARM64\"/sha256 \"${DARWIN_ARM64}\"/" "$FORMULA"
+          sed -i "s/sha256 \"SHA256_LINUX_AMD64\"/sha256 \"${LINUX_AMD64}\"/" "$FORMULA"
+          sed -i "s/sha256 \"SHA256_LINUX_ARM64\"/sha256 \"${LINUX_ARM64}\"/" "$FORMULA"
+
+          # Also handle existing hashes (for subsequent releases)
+          sed -i "/darwin-amd64/,/sha256/{s/sha256 \"[a-f0-9]\{64\}\"/sha256 \"${DARWIN_AMD64}\"/}" "$FORMULA"
+          sed -i "/darwin-arm64/,/sha256/{s/sha256 \"[a-f0-9]\{64\}\"/sha256 \"${DARWIN_ARM64}\"/}" "$FORMULA"
+          sed -i "/linux-amd64/,/sha256/{s/sha256 \"[a-f0-9]\{64\}\"/sha256 \"${LINUX_AMD64}\"/}" "$FORMULA"
+          sed -i "/linux-arm64/,/sha256/{s/sha256 \"[a-f0-9]\{64\}\"/sha256 \"${LINUX_ARM64}\"/}" "$FORMULA"
+
+      - name: Commit and push
+        working-directory: homebrew-tap
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add Formula/whatsapp-cli.rb
+          git commit -m "Update whatsapp-cli to ${GITHUB_REF_NAME}"
+          git push
