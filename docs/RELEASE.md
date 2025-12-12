@@ -6,7 +6,7 @@ This guide describes how to cut a tagged release that supports `go install`, pre
 
 - Use tags that follow `vMAJOR.MINOR.PATCH` (e.g., `v1.0.0`, `v1.0.1`).
 - Stick to semver rules: increment PATCH for bug fixes, MINOR for backward-compatible features, MAJOR for breaking changes.
-- `go install github.com/vicente/whatsapp-cli@v1.0.0` resolves to that tag automatically, so never retag an existing version.
+- `go install github.com/vicentereig/whatsapp-cli@v1.0.0` resolves to that tag automatically, so never retag an existing version.
 
 ## Pre-Release Checklist
 
@@ -79,7 +79,7 @@ Expected identity:
 
 ## Supporting `go install`
 
-- Once the tag exists, `go install github.com/vicente/whatsapp-cli@v1.0.0` installs the release.
+- Once the tag exists, `go install github.com/vicentereig/whatsapp-cli@v1.0.0` installs the release.
 - If a patch is required, cut a new tag like `v1.0.1`. Never retag in place.
 
 ## Source Builds

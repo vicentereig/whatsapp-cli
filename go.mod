@@ -1,4 +1,4 @@
-module github.com/vicente/whatsapp-cli
+module github.com/vicentereig/whatsapp-cli
 
 go 1.24.0
 

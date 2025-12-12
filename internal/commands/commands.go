@@ -13,9 +13,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/vicente/whatsapp-cli/internal/client"
-	"github.com/vicente/whatsapp-cli/internal/output"
-	"github.com/vicente/whatsapp-cli/internal/store"
+	"github.com/vicentereig/whatsapp-cli/internal/client"
+	"github.com/vicentereig/whatsapp-cli/internal/output"
+	"github.com/vicentereig/whatsapp-cli/internal/store"
 	"go.mau.fi/whatsmeow/types/events"
 )
 

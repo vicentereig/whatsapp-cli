@@ -10,7 +10,7 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/vicente/whatsapp-cli/internal/commands"
+	"github.com/vicentereig/whatsapp-cli/internal/commands"
 )
 
 var (

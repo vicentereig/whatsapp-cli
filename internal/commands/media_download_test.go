@@ -9,8 +9,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/vicente/whatsapp-cli/internal/output"
-	"github.com/vicente/whatsapp-cli/internal/store"
+	"github.com/vicentereig/whatsapp-cli/internal/output"
+	"github.com/vicentereig/whatsapp-cli/internal/store"
 )
 
 type fakeDownloadStats struct {

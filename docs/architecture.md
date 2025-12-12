@@ -205,7 +205,7 @@ $ whatsapp-cli contacts search "John"
 ### 1. Create new Go module
 ```bash
 cd whatsapp-cli
-go mod init github.com/vicente/whatsapp-cli
+go mod init github.com/vicentereig/whatsapp-cli
 go get go.mau.fi/whatsmeow
 go get github.com/mdp/qrterminal
 go get github.com/mattn/go-sqlite3
