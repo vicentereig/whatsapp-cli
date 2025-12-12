@@ -2,7 +2,7 @@
 
 > **For Humans & LLMs**: This document contains comprehensive information about the WhatsApp CLI tool, including installation, usage, API reference, examples, architecture, and troubleshooting. It is designed to be parsed by both humans and large language models.
 
-**Version**: 1.1.0
+**Version**: 1.3.2
 **Repository**: https://github.com/vicentereig/whatsapp-cli
 **License**: MIT
 **Language**: Go 1.24+
@@ -83,17 +83,21 @@ brew install whatsapp-cli
 
 ```bash
 # Linux (x86_64)
-wget https://github.com/vicentereig/whatsapp-cli/releases/latest/download/whatsapp-cli-linux
-chmod +x whatsapp-cli-linux
-sudo mv whatsapp-cli-linux /usr/local/bin/whatsapp-cli
+curl -LO https://github.com/vicentereig/whatsapp-cli/releases/latest/download/whatsapp-cli-linux-amd64.tar.gz
+tar -xzf whatsapp-cli-linux-amd64.tar.gz
+sudo mv whatsapp-cli-linux-amd64 /usr/local/bin/whatsapp-cli
 
 # macOS (ARM64 - M1/M2/M3)
-wget https://github.com/vicentereig/whatsapp-cli/releases/latest/download/whatsapp-cli-mac
-chmod +x whatsapp-cli-mac
-sudo mv whatsapp-cli-mac /usr/local/bin/whatsapp-cli
+curl -LO https://github.com/vicentereig/whatsapp-cli/releases/latest/download/whatsapp-cli-darwin-arm64.tar.gz
+tar -xzf whatsapp-cli-darwin-arm64.tar.gz
+sudo mv whatsapp-cli-darwin-arm64 /usr/local/bin/whatsapp-cli
 
-# Windows
-# Download whatsapp-cli.exe from releases page
+# macOS (Intel)
+curl -LO https://github.com/vicentereig/whatsapp-cli/releases/latest/download/whatsapp-cli-darwin-amd64.tar.gz
+tar -xzf whatsapp-cli-darwin-amd64.tar.gz
+sudo mv whatsapp-cli-darwin-amd64 /usr/local/bin/whatsapp-cli
+
+# Windows (x86_64) - download and extract whatsapp-cli-windows-amd64.zip from releases page
 ```
 
 ### Method 3: Build from Source
@@ -1661,6 +1665,6 @@ MIT License - see [LICENSE](LICENSE) file
 
 ---
 
-**Last Updated**: 2025-10-26
-**Version**: 1.1.0
+**Last Updated**: 2025-12-13
+**Version**: 1.3.2
 **Documentation**: https://github.com/vicentereig/whatsapp-cli/blob/main/README.md

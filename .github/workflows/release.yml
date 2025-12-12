@@ -81,7 +81,7 @@ jobs:
       matrix:
         include:
           - arch: amd64
-            runner: macos-13
+            runner: macos-13-xlarge
           - arch: arm64
             runner: macos-14
     steps:
