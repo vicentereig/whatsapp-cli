@@ -250,6 +250,8 @@ func sanitizeSegment(seg string) string {
 	return seg
 }
 
+const maxFilenameLen = 200 // Leave room for directory path; most filesystems allow 255
+
 func sanitizeFilename(name string) string {
 	name = strings.TrimSpace(name)
 	if name == "" {
@@ -258,6 +260,16 @@ func sanitizeFilename(name string) string {
 	name = pathReplacer.Replace(name)
 	name = strings.ReplaceAll(name, string(os.PathSeparator), "_")
 	name = strings.ReplaceAll(name, "..", "_")
+	// Truncate if too long (preserve extension if possible)
+	if len(name) > maxFilenameLen {
+		ext := filepath.Ext(name)
+		if len(ext) < 20 && len(ext) > 0 {
+			base := name[:maxFilenameLen-len(ext)]
+			name = base + ext
+		} else {
+			name = name[:maxFilenameLen]
+		}
+	}
 	return name
 }
 
@@ -400,6 +412,12 @@ type mediaDownloadWorker struct {
 	ctx     context.Context
 	cancel  context.CancelFunc
 	wg      sync.WaitGroup
+
+	// Error tracking
+	mu             sync.Mutex
+	expiredCount   int // 403/404/410 errors (media expired/deleted)
+	otherErrors    int
+	otherErrorMsgs []string // Keep first few for debugging
 }
 
 func newMediaDownloadWorker(app *App, workers int) *mediaDownloadWorker {
@@ -432,8 +450,53 @@ func (w *mediaDownloadWorker) run() {
 			return
 		case job := <-w.jobs:
 			if err := w.app.processMediaJob(w.ctx, job); err != nil {
-				fmt.Fprintf(os.Stderr, "⚠️  media download failed for %s: %v\n", job.messageID, err)
+				w.trackError(err)
 			}
+		}
+	}
+}
+
+func (w *mediaDownloadWorker) trackError(err error) {
+	errStr := err.Error()
+	// Check for expected expired/deleted media errors
+	isExpired := contains(errStr, "status code 403") ||
+		contains(errStr, "status code 404") ||
+		contains(errStr, "status code 410")
+
+	w.mu.Lock()
+	defer w.mu.Unlock()
+
+	if isExpired {
+		w.expiredCount++
+	} else {
+		w.otherErrors++
+		// Keep first 5 other errors for debugging
+		if len(w.otherErrorMsgs) < 5 {
+			w.otherErrorMsgs = append(w.otherErrorMsgs, errStr)
+		}
+	}
+}
+
+func (w *mediaDownloadWorker) PrintSummary() {
+	if w == nil {
+		return
+	}
+	w.mu.Lock()
+	expiredCount := w.expiredCount
+	otherErrors := w.otherErrors
+	otherErrorMsgs := w.otherErrorMsgs
+	w.mu.Unlock()
+
+	if expiredCount > 0 {
+		fmt.Fprintf(os.Stderr, "⚠️  Skipped %d expired/deleted media files (normal for old messages)\n", expiredCount)
+	}
+	if otherErrors > 0 {
+		fmt.Fprintf(os.Stderr, "⚠️  %d media downloads failed:\n", otherErrors)
+		for _, msg := range otherErrorMsgs {
+			fmt.Fprintf(os.Stderr, "   - %s\n", msg)
+		}
+		if otherErrors > len(otherErrorMsgs) {
+			fmt.Fprintf(os.Stderr, "   ... and %d more\n", otherErrors-len(otherErrorMsgs))
 		}
 	}
 }
@@ -489,6 +552,7 @@ func (a *App) Sync(ctx context.Context) string {
 	a.mediaWorker = worker
 	defer func() {
 		worker.Stop()
+		worker.PrintSummary()
 		if a.mediaWorker == worker {
 			a.mediaWorker = nil
 		}
@@ -604,7 +668,7 @@ func (a *App) Sync(ctx context.Context) string {
 						img := histMsg.Message.GetImageMessage()
 						mediaType = "image"
 						content = img.GetCaption()
-						filename = img.GetCaption()
+						// Don't use caption as filename - it can be very long text
 						url = img.GetURL()
 						directPath = img.GetDirectPath()
 						mimeType = img.GetMimetype()
@@ -616,7 +680,7 @@ func (a *App) Sync(ctx context.Context) string {
 						video := histMsg.Message.GetVideoMessage()
 						mediaType = "video"
 						content = video.GetCaption()
-						filename = video.GetCaption()
+						// Don't use caption as filename - it can be very long text
 						url = video.GetURL()
 						directPath = video.GetDirectPath()
 						mimeType = video.GetMimetype()
