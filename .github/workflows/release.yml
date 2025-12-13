@@ -217,11 +217,12 @@ jobs:
           BASE_URL="https://github.com/vicentereig/whatsapp-cli/releases/download/${GITHUB_REF_NAME}"
           FORMULA="homebrew-tap/Formula/whatsapp-cli.rb"
 
-          # Download SHA256 values from release checksums
-          DARWIN_AMD64=$(curl -sL "${BASE_URL}/whatsapp-cli-darwin-amd64.tar.gz.sha256" | awk '{print $1}')
-          DARWIN_ARM64=$(curl -sL "${BASE_URL}/whatsapp-cli-darwin-arm64.tar.gz.sha256" | awk '{print $1}')
-          LINUX_AMD64=$(curl -sL "${BASE_URL}/whatsapp-cli-linux-amd64.tar.gz.sha256" | awk '{print $1}')
-          LINUX_ARM64=$(curl -sL "${BASE_URL}/whatsapp-cli-linux-arm64.tar.gz.sha256" | awk '{print $1}')
+          # Download checksums.txt and extract SHA256 values
+          CHECKSUMS=$(curl -sL "${BASE_URL}/checksums.txt")
+          DARWIN_AMD64=$(echo "$CHECKSUMS" | grep 'darwin-amd64' | awk '{print $1}')
+          DARWIN_ARM64=$(echo "$CHECKSUMS" | grep 'darwin-arm64' | awk '{print $1}')
+          LINUX_AMD64=$(echo "$CHECKSUMS" | grep 'linux-amd64' | awk '{print $1}')
+          LINUX_ARM64=$(echo "$CHECKSUMS" | grep 'linux-arm64' | awk '{print $1}')
 
           # Update version
           sed -i "s/version \".*\"/version \"${VERSION}\"/" "$FORMULA"
