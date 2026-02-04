@@ -1,16 +1,14 @@
 // Package commands provides the CLI command implementations.
 //
-// # Dependency Injection (Future Work)
+// # Dependency Injection
 //
-// The interfaces below document the dependencies of App.
-// Currently App uses concrete types; these interfaces prepare for
-// future testability improvements where mocks can be injected.
+// The interfaces below define the dependencies of App, enabling testability
+// through mock injection. Types are shared via internal/types to avoid
+// circular dependencies.
 //
-// To fully enable DI:
-// 1. Align MediaDownloadRequest types between client and commands
-// 2. Add StartSync to WAClient interface
-// 3. Update App struct to use interfaces
-// 4. Add constructor that accepts interfaces for testing
+// Usage:
+//   - Production: Use NewApp() which creates concrete implementations
+//   - Testing: Use NewAppWithDeps() to inject mocks
 package commands
 
 import (
@@ -18,6 +16,7 @@ import (
 	"time"
 
 	"github.com/vicentereig/whatsapp-cli/internal/store"
+	"github.com/vicentereig/whatsapp-cli/internal/types"
 )
 
 // MessageStore defines the interface for message persistence.
@@ -45,17 +44,6 @@ type WAClient interface {
 	Disconnect()
 	SendMessage(ctx context.Context, recipient, message string) error
 	ResolveChatName(ctx context.Context, jid string, evt interface{}) string
-	DownloadMediaToFile(ctx context.Context, req MediaDownloadRequest, targetPath string) (int64, error)
-}
-
-// MediaDownloadRequest contains parameters for downloading media.
-type MediaDownloadRequest struct {
-	URL           string
-	DirectPath    string
-	MediaKey      []byte
-	FileSHA256    []byte
-	FileEncSHA256 []byte
-	FileLength    uint64
-	MediaType     string
-	MimeType      string
+	DownloadMediaToFile(ctx context.Context, req types.MediaDownloadRequest, targetPath string) (int64, error)
+	StartSync(ctx context.Context, eventHandler func(interface{})) error
 }

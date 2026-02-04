@@ -16,6 +16,7 @@ import (
 	"github.com/vicentereig/whatsapp-cli/internal/client"
 	"github.com/vicentereig/whatsapp-cli/internal/output"
 	"github.com/vicentereig/whatsapp-cli/internal/store"
+	"github.com/vicentereig/whatsapp-cli/internal/types"
 	"go.mau.fi/whatsmeow/types/events"
 )
 
@@ -338,7 +339,7 @@ func (a *App) downloadMediaWithClient(ctx context.Context, info store.MessageDow
 	if err := a.client.Connect(ctx); err != nil {
 		return 0, err
 	}
-	req := client.MediaDownloadRequest{
+	req := types.MediaDownloadRequest{
 		DirectPath:    info.DirectPath,
 		MediaKey:      info.MediaKey,
 		FileSHA256:    info.FileSHA256,
