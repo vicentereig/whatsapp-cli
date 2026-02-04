@@ -82,7 +82,11 @@ func main() {
 	}
 
 	// Create app
-	absStoreDir, _ := filepath.Abs(*storeDir)
+	absStoreDir, err := filepath.Abs(*storeDir)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, `{"success":false,"data":null,"error":"invalid store path: %v"}`+"\n", err)
+		os.Exit(1)
+	}
 	app, err := commands.NewApp(absStoreDir, version)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, `{"success":false,"data":null,"error":"Failed to initialize: %v"}
