@@ -79,6 +79,7 @@ func TestListMessages_FiltersByChat(t *testing.T) {
 }
 
 // TestListMessages_RespectsLimit verifies that --limit flag is honored.
+// Tests behavior (output count) not implementation (param passing).
 func TestListMessages_RespectsLimit(t *testing.T) {
 	allMessages := []store.Message{
 		{ID: "1", Content: "msg1", Timestamp: time.Now()},
@@ -88,11 +89,9 @@ func TestListMessages_RespectsLimit(t *testing.T) {
 		{ID: "5", Content: "msg5", Timestamp: time.Now()},
 	}
 
-	var capturedLimit int
 	mockStore := &MockMessageStore{
 		ListMessagesFunc: func(params store.ListMessagesParams) ([]store.Message, error) {
-			capturedLimit = params.Limit
-			// Simulate limit behavior
+			// Simulate limit behavior - this is what the real store does
 			if params.Limit > 0 && params.Limit < len(allMessages) {
 				return allMessages[:params.Limit], nil
 			}
@@ -105,10 +104,9 @@ func TestListMessages_RespectsLimit(t *testing.T) {
 	// When: ListMessages called with limit=2
 	result := app.ListMessages(nil, nil, 2, 0)
 
-	// Then: Only 2 messages returned and limit was passed to store
+	// Then: Only 2 messages returned (behavioral - tests output, not internals)
 	resp := parseResponse(t, result)
 	require.True(t, resp.Success)
-	require.Equal(t, 2, capturedLimit, "limit should be passed to store")
 
 	var messages []store.Message
 	err := json.Unmarshal(resp.Data, &messages)
@@ -116,63 +114,59 @@ func TestListMessages_RespectsLimit(t *testing.T) {
 	require.Len(t, messages, 2, "should return only 2 messages")
 }
 
-// TestDownloadMedia_MissingMessage verifies proper error for non-existent message.
-func TestDownloadMedia_MissingMessage(t *testing.T) {
-	mockStore := &MockMessageStore{
-		GetMessageForDownloadFunc: func(id string, chatJID *string) (store.MessageDownloadInfo, error) {
-			return store.MessageDownloadInfo{}, sql.ErrNoRows
+// TestDownloadMedia_Errors uses table-driven tests for error cases.
+// Per Go best practice: group related test cases in tables.
+func TestDownloadMedia_Errors(t *testing.T) {
+	tests := []struct {
+		name        string
+		messageID   string
+		mockStore   *MockMessageStore
+		wantContain string
+	}{
+		{
+			name:      "missing message returns not found error",
+			messageID: "nonexistent123",
+			mockStore: &MockMessageStore{
+				GetMessageForDownloadFunc: func(id string, chatJID *string) (store.MessageDownloadInfo, error) {
+					return store.MessageDownloadInfo{}, sql.ErrNoRows
+				},
+			},
+			wantContain: "not found",
+		},
+		{
+			name:        "empty message ID returns required error",
+			messageID:   "",
+			mockStore:   &MockMessageStore{},
+			wantContain: "required",
+		},
+		{
+			name:      "message without media returns no media error",
+			messageID: "textonly123",
+			mockStore: &MockMessageStore{
+				GetMessageForDownloadFunc: func(id string, chatJID *string) (store.MessageDownloadInfo, error) {
+					return store.MessageDownloadInfo{
+						ID:      id,
+						ChatJID: "chat@jid",
+						// No MediaType, DirectPath, or MediaKey
+					}, nil
+				},
+			},
+			wantContain: "no downloadable media",
 		},
 	}
 
-	app := NewAppWithDeps(&MockWAClient{}, mockStore, "/tmp", "test")
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			app := NewAppWithDeps(&MockWAClient{}, tt.mockStore, "/tmp", "test")
 
-	// When: DownloadMedia called for non-existent message
-	result := app.DownloadMedia(context.Background(), "nonexistent123", nil, "")
+			result := app.DownloadMedia(context.Background(), tt.messageID, nil, "")
 
-	// Then: Returns error with proper message
-	resp := parseResponse(t, result)
-	require.False(t, resp.Success, "should fail")
-	require.NotNil(t, resp.Error)
-	require.Contains(t, *resp.Error, "not found", "error should indicate message not found")
-}
-
-// TestDownloadMedia_EmptyMessageID verifies proper error for empty message ID.
-func TestDownloadMedia_EmptyMessageID(t *testing.T) {
-	app := NewAppWithDeps(&MockWAClient{}, &MockMessageStore{}, "/tmp", "test")
-
-	// When: DownloadMedia called with empty message ID
-	result := app.DownloadMedia(context.Background(), "", nil, "")
-
-	// Then: Returns error
-	resp := parseResponse(t, result)
-	require.False(t, resp.Success, "should fail")
-	require.NotNil(t, resp.Error)
-	require.Contains(t, *resp.Error, "required", "error should indicate ID is required")
-}
-
-// TestDownloadMedia_NoMedia verifies proper error when message has no media.
-func TestDownloadMedia_NoMedia(t *testing.T) {
-	mockStore := &MockMessageStore{
-		GetMessageForDownloadFunc: func(id string, chatJID *string) (store.MessageDownloadInfo, error) {
-			// Return message with no media info
-			return store.MessageDownloadInfo{
-				ID:      id,
-				ChatJID: "chat@jid",
-				// No MediaType, DirectPath, or MediaKey
-			}, nil
-		},
+			resp := parseResponse(t, result)
+			require.False(t, resp.Success, "should fail")
+			require.NotNil(t, resp.Error)
+			require.Contains(t, *resp.Error, tt.wantContain)
+		})
 	}
-
-	app := NewAppWithDeps(&MockWAClient{}, mockStore, "/tmp", "test")
-
-	// When: DownloadMedia called for message without media
-	result := app.DownloadMedia(context.Background(), "textonly123", nil, "")
-
-	// Then: Returns error indicating no media
-	resp := parseResponse(t, result)
-	require.False(t, resp.Success, "should fail")
-	require.NotNil(t, resp.Error)
-	require.Contains(t, *resp.Error, "no downloadable media", "error should indicate no media")
 }
 
 // TestSearchContacts_ReturnsResults verifies contact search works.
