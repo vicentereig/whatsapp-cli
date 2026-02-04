@@ -200,7 +200,13 @@ func bestContactName(info waTypes.ContactInfo) string {
 	return ""
 }
 
-func (w *WAClient) ResolveChatName(ctx context.Context, chatJID string, msg *events.Message) string {
+func (w *WAClient) ResolveChatName(ctx context.Context, chatJID string, evt interface{}) string {
+	// Type assert to *events.Message if provided
+	var msg *events.Message
+	if evt != nil {
+		msg, _ = evt.(*events.Message)
+	}
+
 	if chatJID == "" && msg != nil {
 		chatJID = msg.Info.Chat.String()
 	}

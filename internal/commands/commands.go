@@ -21,14 +21,15 @@ import (
 )
 
 type App struct {
-	client          *client.WAClient
-	store           *store.MessageStore
+	client          WAClient
+	store           MessageStore
 	version         string
 	storeDir        string
 	mediaDownloader func(ctx context.Context, info store.MessageDownloadInfo, targetPath string) (int64, error)
 	mediaWorker     *mediaDownloadWorker
 }
 
+// NewApp creates a new App with production dependencies.
 func NewApp(storeDir, version string) (*App, error) {
 	cli, err := client.NewWAClient(storeDir)
 	if err != nil {
@@ -49,6 +50,17 @@ func NewApp(storeDir, version string) (*App, error) {
 	}
 	app.mediaDownloader = app.downloadMediaWithClient
 	return app, nil
+}
+
+// NewAppWithDeps creates a new App with injected dependencies for testing.
+func NewAppWithDeps(client WAClient, store MessageStore, storeDir, version string) *App {
+	app := &App{
+		client:   client,
+		store:    store,
+		version:  version,
+		storeDir: storeDir,
+	}
+	return app
 }
 
 func (a *App) Close() {
