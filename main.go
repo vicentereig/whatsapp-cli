@@ -18,6 +18,11 @@ var (
 	version = "1.3.1"
 )
 
+const (
+	// defaultTimeout is the maximum duration for non-sync commands
+	defaultTimeout = 5 * time.Minute
+)
+
 const usage = `WhatsApp CLI - Command line interface for WhatsApp
 
 Usage:
@@ -99,7 +104,7 @@ func main() {
 			cancel()
 		}()
 	} else {
-		ctx, cancel = context.WithTimeout(context.Background(), 5*time.Minute)
+		ctx, cancel = context.WithTimeout(context.Background(), defaultTimeout)
 	}
 	defer cancel()
 
