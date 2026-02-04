@@ -23,6 +23,15 @@ const (
 	defaultTimeout = 5 * time.Minute
 )
 
+// optionalStr returns nil for empty strings, otherwise a pointer to the string.
+// Used to convert flag values to optional parameters.
+func optionalStr(s string) *string {
+	if s == "" {
+		return nil
+	}
+	return &s
+}
+
 const usage = `WhatsApp CLI - Command line interface for WhatsApp
 
 Usage:
@@ -132,11 +141,7 @@ func main() {
 		if subcommand == "search" || *query != "" {
 			result = app.ListMessages(nil, query, *limit, *page)
 		} else {
-			var chatPtr *string
-			if *chatJID != "" {
-				chatPtr = chatJID
-			}
-			result = app.ListMessages(chatPtr, nil, *limit, *page)
+			result = app.ListMessages(optionalStr(*chatJID), nil, *limit, *page)
 		}
 
 	case "contacts":
@@ -157,11 +162,7 @@ func main() {
 		page := chatsCmd.Int("page", 0, "page")
 		chatsCmd.Parse(args[2:]) // skip "chats" and "list"
 
-		var queryPtr *string
-		if *query != "" {
-			queryPtr = query
-		}
-		result = app.ListChats(queryPtr, *limit, *page)
+		result = app.ListChats(optionalStr(*query), *limit, *page)
 
 	case "send":
 		sendCmd := flag.NewFlagSet("send", flag.ExitOnError)
@@ -190,11 +191,7 @@ func main() {
 			fmt.Fprintln(os.Stderr, `{"success":false,"data":null,"error":"--message-id required"}`)
 			os.Exit(1)
 		}
-		var chatPtr *string
-		if *chatJID != "" {
-			chatPtr = chatJID
-		}
-		result = app.DownloadMedia(ctx, *messageID, chatPtr, *outputPath)
+		result = app.DownloadMedia(ctx, *messageID, optionalStr(*chatJID), *outputPath)
 
 	default:
 		fmt.Fprintf(os.Stderr, `{"success":false,"data":null,"error":"Unknown command: %s"}
