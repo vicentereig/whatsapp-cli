@@ -18,6 +18,20 @@ var (
 	version = "1.3.1"
 )
 
+const (
+	// defaultTimeout is the maximum duration for non-sync commands
+	defaultTimeout = 5 * time.Minute
+)
+
+// optionalStr returns nil for empty strings, otherwise a pointer to the string.
+// Used to convert flag values to optional parameters.
+func optionalStr(s string) *string {
+	if s == "" {
+		return nil
+	}
+	return &s
+}
+
 const usage = `WhatsApp CLI - Command line interface for WhatsApp
 
 Usage:
@@ -77,7 +91,11 @@ func main() {
 	}
 
 	// Create app
-	absStoreDir, _ := filepath.Abs(*storeDir)
+	absStoreDir, err := filepath.Abs(*storeDir)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, `{"success":false,"data":null,"error":"invalid store path: %v"}`+"\n", err)
+		os.Exit(1)
+	}
 	app, err := commands.NewApp(absStoreDir, version)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, `{"success":false,"data":null,"error":"Failed to initialize: %v"}
@@ -99,7 +117,7 @@ func main() {
 			cancel()
 		}()
 	} else {
-		ctx, cancel = context.WithTimeout(context.Background(), 5*time.Minute)
+		ctx, cancel = context.WithTimeout(context.Background(), defaultTimeout)
 	}
 	defer cancel()
 
@@ -118,22 +136,18 @@ func main() {
 		query := messagesCmd.String("query", "", "search query")
 		limit := messagesCmd.Int("limit", 20, "limit")
 		page := messagesCmd.Int("page", 0, "page")
-		messagesCmd.Parse(args[1:])
+		messagesCmd.Parse(args[2:]) // skip "messages" and subcommand ("list" or "search")
 
 		if subcommand == "search" || *query != "" {
 			result = app.ListMessages(nil, query, *limit, *page)
 		} else {
-			var chatPtr *string
-			if *chatJID != "" {
-				chatPtr = chatJID
-			}
-			result = app.ListMessages(chatPtr, nil, *limit, *page)
+			result = app.ListMessages(optionalStr(*chatJID), nil, *limit, *page)
 		}
 
 	case "contacts":
 		contactsCmd := flag.NewFlagSet("contacts", flag.ExitOnError)
 		query := contactsCmd.String("query", "", "search query")
-		contactsCmd.Parse(args[1:])
+		contactsCmd.Parse(args[2:]) // skip "contacts" and "search"
 
 		if *query == "" {
 			fmt.Fprintln(os.Stderr, `{"success":false,"data":null,"error":"--query required"}`)
@@ -146,13 +160,9 @@ func main() {
 		query := chatsCmd.String("query", "", "search query")
 		limit := chatsCmd.Int("limit", 20, "limit")
 		page := chatsCmd.Int("page", 0, "page")
-		chatsCmd.Parse(args[1:])
+		chatsCmd.Parse(args[2:]) // skip "chats" and "list"
 
-		var queryPtr *string
-		if *query != "" {
-			queryPtr = query
-		}
-		result = app.ListChats(queryPtr, *limit, *page)
+		result = app.ListChats(optionalStr(*query), *limit, *page)
 
 	case "send":
 		sendCmd := flag.NewFlagSet("send", flag.ExitOnError)
@@ -181,11 +191,7 @@ func main() {
 			fmt.Fprintln(os.Stderr, `{"success":false,"data":null,"error":"--message-id required"}`)
 			os.Exit(1)
 		}
-		var chatPtr *string
-		if *chatJID != "" {
-			chatPtr = chatJID
-		}
-		result = app.DownloadMedia(ctx, *messageID, chatPtr, *outputPath)
+		result = app.DownloadMedia(ctx, *messageID, optionalStr(*chatJID), *outputPath)
 
 	default:
 		fmt.Fprintf(os.Stderr, `{"success":false,"data":null,"error":"Unknown command: %s"}
