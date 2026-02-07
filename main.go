@@ -118,7 +118,11 @@ func main() {
 		query := messagesCmd.String("query", "", "search query")
 		limit := messagesCmd.Int("limit", 20, "limit")
 		page := messagesCmd.Int("page", 0, "page")
-		messagesCmd.Parse(args[1:])
+		// Parse from args[2:] to skip subcommand ("list"/"search") —
+		// Go's flag parser stops at the first non-flag argument.
+		if len(args) > 2 {
+			messagesCmd.Parse(args[2:])
+		}
 
 		if subcommand == "search" || *query != "" {
 			result = app.ListMessages(nil, query, *limit, *page)
@@ -133,7 +137,11 @@ func main() {
 	case "contacts":
 		contactsCmd := flag.NewFlagSet("contacts", flag.ExitOnError)
 		query := contactsCmd.String("query", "", "search query")
-		contactsCmd.Parse(args[1:])
+		// Parse from args[2:] to skip subcommand ("search") —
+		// Go's flag parser stops at the first non-flag argument.
+		if len(args) > 2 {
+			contactsCmd.Parse(args[2:])
+		}
 
 		if *query == "" {
 			fmt.Fprintln(os.Stderr, `{"success":false,"data":null,"error":"--query required"}`)
@@ -146,7 +154,11 @@ func main() {
 		query := chatsCmd.String("query", "", "search query")
 		limit := chatsCmd.Int("limit", 20, "limit")
 		page := chatsCmd.Int("page", 0, "page")
-		chatsCmd.Parse(args[1:])
+		// Parse from args[2:] to skip subcommand ("list") —
+		// Go's flag parser stops at the first non-flag argument.
+		if len(args) > 2 {
+			chatsCmd.Parse(args[2:])
+		}
 
 		var queryPtr *string
 		if *query != "" {
