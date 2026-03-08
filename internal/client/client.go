@@ -258,7 +258,7 @@ func (w *WAClient) StartSync(ctx context.Context, eventHandler func(interface{})
 
 func parseJID(recipient string) (waTypes.JID, error) {
 	// If already a JID, parse it
-	if contains(recipient, "@") {
+	if strings.Contains(recipient, "@") {
 		return waTypes.ParseJID(recipient)
 	}
 
@@ -269,14 +269,6 @@ func parseJID(recipient string) (waTypes.JID, error) {
 	}, nil
 }
 
-func contains(s, substr string) bool {
-	for i := 0; i < len(s); i++ {
-		if s[i] == substr[0] {
-			return true
-		}
-	}
-	return false
-}
 
 func (w *WAClient) DownloadMediaToFile(ctx context.Context, req types.MediaDownloadRequest, targetPath string) (int64, error) {
 	if w == nil || w.client == nil {

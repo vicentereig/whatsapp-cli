@@ -141,7 +141,7 @@ func (a *App) SendMessage(ctx context.Context, recipient, message string) string
 	// Store the message
 	timestamp := time.Now()
 	chatJID := recipient
-	if !contains(recipient, "@") {
+	if !strings.Contains(recipient, "@") {
 		chatJID = recipient + "@s.whatsapp.net"
 	}
 
@@ -472,9 +472,9 @@ func (w *mediaDownloadWorker) run() {
 func (w *mediaDownloadWorker) trackError(err error) {
 	errStr := err.Error()
 	// Check for expected expired/deleted media errors
-	isExpired := contains(errStr, "status code 403") ||
-		contains(errStr, "status code 404") ||
-		contains(errStr, "status code 410")
+	isExpired := strings.Contains(errStr, "status code 403") ||
+		strings.Contains(errStr, "status code 404") ||
+		strings.Contains(errStr, "status code 410")
 
 	w.mu.Lock()
 	defer w.mu.Unlock()
@@ -539,15 +539,6 @@ func (w *mediaDownloadWorker) Stop() {
 		w.cancel()
 	}
 	w.wg.Wait()
-}
-
-func contains(s, substr string) bool {
-	for i := 0; i < len(s); i++ {
-		if i+len(substr) <= len(s) && s[i:i+len(substr)] == substr {
-			return true
-		}
-	}
-	return false
 }
 
 // Sync connects to WhatsApp and continuously syncs messages to the database
