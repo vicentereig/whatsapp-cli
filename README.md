@@ -703,7 +703,7 @@ whatsapp-cli media download --message-id XYZ987 --chat 1234567890@s.whatsapp.net
 
 ## JSON Response Format
 
-All commands return JSON in this standardized format:
+All commands return exactly one JSON object on **stdout**. Human-readable output (help, usage, QR codes, progress) goes to **stderr** only. Agents should parse stdout and check the exit code.
 
 ### Success Response
 
@@ -1325,10 +1325,11 @@ For detailed technical architecture, see [docs/architecture.md](docs/architectur
 
 ### Exit Codes
 
-| Code | Meaning |
-|------|---------|
-| 0 | Success |
-| 1 | General error (check JSON error field) |
+| Code | Meaning | Example |
+|------|---------|---------|
+| 0 | Success — `{"success":true,...}` on stdout | Valid command completed |
+| 1 | Runtime error — `{"success":false,...}` on stdout | Bad store path, connection failed, app method failure |
+| 2 | Usage error — `{"success":false,...}` on stdout | Missing required flag, unknown command, stray args |
 
 ---
 
