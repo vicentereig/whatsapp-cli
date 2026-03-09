@@ -129,45 +129,91 @@ func (a *App) ListChats(query *string, limit, page int) string {
 	return output.Success(chats)
 }
 
+// recipientToJID normalizes a recipient string to a full JID.
+func recipientToJID(recipient string) string {
+	if strings.Contains(recipient, "@") {
+		return recipient
+	}
+	return recipient + "@s.whatsapp.net"
+}
+
 func (a *App) SendMessage(ctx context.Context, recipient, message string) string {
 	if err := a.client.Connect(ctx); err != nil {
 		return output.Error(err)
 	}
 
-	if err := a.client.SendMessage(ctx, recipient, message); err != nil {
+	msgID, err := a.client.SendMessage(ctx, recipient, message)
+	if err != nil {
 		return output.Error(err)
 	}
 
-	// Store the message
 	timestamp := time.Now()
-	chatJID := recipient
-	if !strings.Contains(recipient, "@") {
-		chatJID = recipient + "@s.whatsapp.net"
-	}
+	chatJID := recipientToJID(recipient)
 
-	// Resolve a friendly chat name when available (falls back to JID/recipient)
 	chatName := a.client.ResolveChatName(ctx, chatJID, nil)
 	if chatName == "" {
 		chatName = recipient
 	}
 
-	// Store chat if needed
-	a.store.StoreChat(chatJID, chatName, timestamp)
-	a.store.StoreMessage(
-		fmt.Sprintf("%d", timestamp.Unix()),
-		chatJID,
-		"me",
-		message,
-		timestamp,
-		true,
+	if err := a.store.StoreChat(chatJID, chatName, timestamp); err != nil {
+		return output.Error(fmt.Errorf("storing chat: %w", err))
+	}
+	if err := a.store.StoreMessage(
+		msgID, chatJID, "me", message, timestamp, true,
 		"", "", "", "", "",
 		nil, nil, nil, 0,
-	)
+	); err != nil {
+		return output.Error(fmt.Errorf("storing message: %w", err))
+	}
 
 	return output.Success(map[string]interface{}{
 		"sent":      true,
+		"id":        msgID,
 		"recipient": recipient,
 		"message":   message,
+	})
+}
+
+func (a *App) SendImage(ctx context.Context, recipient, imagePath, caption string) string {
+	if err := a.client.Connect(ctx); err != nil {
+		return output.Error(err)
+	}
+
+	msgID, err := a.client.SendImageMessage(ctx, recipient, imagePath, caption)
+	if err != nil {
+		return output.Error(err)
+	}
+
+	timestamp := time.Now()
+	chatJID := recipientToJID(recipient)
+
+	chatName := a.client.ResolveChatName(ctx, chatJID, nil)
+	if chatName == "" {
+		chatName = recipient
+	}
+
+	content := caption
+	if content == "" {
+		content = "[Image]"
+	}
+
+	if err := a.store.StoreChat(chatJID, chatName, timestamp); err != nil {
+		return output.Error(fmt.Errorf("storing chat: %w", err))
+	}
+	if err := a.store.StoreMessage(
+		msgID, chatJID, "me", content, timestamp, true,
+		"image", filepath.Base(imagePath), "", "", "",
+		nil, nil, nil, 0,
+	); err != nil {
+		return output.Error(fmt.Errorf("storing message: %w", err))
+	}
+
+	return output.Success(map[string]interface{}{
+		"sent":      true,
+		"id":        msgID,
+		"recipient": recipient,
+		"image":     imagePath,
+		"caption":   caption,
 	})
 }
 

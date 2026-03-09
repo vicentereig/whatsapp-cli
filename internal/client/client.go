@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"fmt"
 	"math"
+	"mime"
 	"os"
 	"path/filepath"
 	"strings"
@@ -103,11 +104,10 @@ func (w *WAClient) Authenticate(ctx context.Context) error {
 
 	for evt := range qrChan {
 		if evt.Event == "code" {
-			fmt.Println("\nScan this QR code with your WhatsApp app:")
-			// Use Medium error correction and compact output
-			qrterminal.GenerateHalfBlock(evt.Code, qrterminal.M, os.Stdout)
+			fmt.Fprintln(os.Stderr, "\nScan this QR code with your WhatsApp app:")
+			qrterminal.GenerateHalfBlock(evt.Code, qrterminal.M, os.Stderr)
 		} else if evt.Event == "success" {
-			fmt.Println("\n✓ Successfully authenticated!")
+			fmt.Fprintln(os.Stderr, "\n✓ Successfully authenticated!")
 			return nil
 		}
 	}
@@ -137,22 +137,71 @@ func (w *WAClient) Disconnect() {
 	}
 }
 
-func (w *WAClient) SendMessage(ctx context.Context, recipient, message string) error {
+func (w *WAClient) SendMessage(ctx context.Context, recipient, message string) (string, error) {
 	if !w.client.IsConnected() {
-		return fmt.Errorf("not connected to WhatsApp")
+		return "", fmt.Errorf("not connected to WhatsApp")
 	}
 
 	recipientJID, err := parseJID(recipient)
 	if err != nil {
-		return err
+		return "", fmt.Errorf("parsing recipient: %w", err)
 	}
 
-	msg := &waProto.Message{
+	resp, err := w.client.SendMessage(ctx, recipientJID, &waProto.Message{
 		Conversation: proto.String(message),
+	})
+	if err != nil {
+		return "", err
+	}
+	return resp.ID, nil
+}
+
+func (w *WAClient) SendImageMessage(ctx context.Context, recipient, imagePath, caption string) (string, error) {
+	if !w.client.IsConnected() {
+		return "", fmt.Errorf("not connected to WhatsApp")
 	}
 
-	_, err = w.client.SendMessage(ctx, recipientJID, msg)
-	return err
+	recipientJID, err := parseJID(recipient)
+	if err != nil {
+		return "", fmt.Errorf("parsing recipient: %w", err)
+	}
+
+	data, err := os.ReadFile(imagePath)
+	if err != nil {
+		return "", fmt.Errorf("reading image file: %w", err)
+	}
+
+	mimeType := mimeTypeFromExtension(imagePath)
+
+	uploadResp, err := w.client.Upload(ctx, data, whatsmeow.MediaImage)
+	if err != nil {
+		return "", fmt.Errorf("uploading image: %w", err)
+	}
+
+	sendResp, err := w.client.SendMessage(ctx, recipientJID, &waProto.Message{
+		ImageMessage: &waProto.ImageMessage{
+			Caption:       proto.String(caption),
+			Mimetype:      proto.String(mimeType),
+			URL:           &uploadResp.URL,
+			DirectPath:    &uploadResp.DirectPath,
+			MediaKey:      uploadResp.MediaKey,
+			FileEncSHA256: uploadResp.FileEncSHA256,
+			FileSHA256:    uploadResp.FileSHA256,
+			FileLength:    &uploadResp.FileLength,
+		},
+	})
+	if err != nil {
+		return "", fmt.Errorf("sending image message: %w", err)
+	}
+	return sendResp.ID, nil
+}
+
+func mimeTypeFromExtension(path string) string {
+	ext := strings.ToLower(filepath.Ext(path))
+	if mtype := mime.TypeByExtension(ext); mtype != "" {
+		return mtype
+	}
+	return "image/jpeg"
 }
 
 func (w *WAClient) AddEventHandler(handler func(interface{})) {

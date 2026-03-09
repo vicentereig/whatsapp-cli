@@ -82,7 +82,8 @@ type MockWAClient struct {
 	AuthenticateFunc        func(ctx context.Context) error
 	ConnectFunc             func(ctx context.Context) error
 	DisconnectFunc          func()
-	SendMessageFunc         func(ctx context.Context, recipient, message string) error
+	SendMessageFunc         func(ctx context.Context, recipient, message string) (string, error)
+	SendImageMessageFunc    func(ctx context.Context, recipient, imagePath, caption string) (string, error)
 	ResolveChatNameFunc     func(ctx context.Context, jid string, evt interface{}) string
 	DownloadMediaToFileFunc func(ctx context.Context, req types.MediaDownloadRequest, targetPath string) (int64, error)
 	StartSyncFunc           func(ctx context.Context, eventHandler func(interface{})) error
@@ -115,11 +116,18 @@ func (m *MockWAClient) Disconnect() {
 	}
 }
 
-func (m *MockWAClient) SendMessage(ctx context.Context, recipient, message string) error {
+func (m *MockWAClient) SendMessage(ctx context.Context, recipient, message string) (string, error) {
 	if m.SendMessageFunc != nil {
 		return m.SendMessageFunc(ctx, recipient, message)
 	}
-	return nil
+	return "mock-id", nil
+}
+
+func (m *MockWAClient) SendImageMessage(ctx context.Context, recipient, imagePath, caption string) (string, error) {
+	if m.SendImageMessageFunc != nil {
+		return m.SendImageMessageFunc(ctx, recipient, imagePath, caption)
+	}
+	return "mock-id", nil
 }
 
 func (m *MockWAClient) ResolveChatName(ctx context.Context, jid string, evt interface{}) string {
