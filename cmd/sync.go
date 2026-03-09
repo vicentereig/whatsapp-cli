@@ -5,6 +5,7 @@ import "github.com/spf13/cobra"
 var syncCmd = &cobra.Command{
 	Use:   "sync",
 	Short: "Sync messages continuously (run until Ctrl+C)",
+	Args:  cobra.NoArgs,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		return runWithApp(func() string {
 			ctx, cancel := newContext(true)

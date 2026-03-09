@@ -566,11 +566,12 @@ whatsapp-cli chats list | jq '.data[] | select(.jid | endswith("@g.us"))'
 
 ### Command: `send`
 
-Send a text message to an individual or group.
+Send a text message or image to an individual or group.
 
 **Syntax:**
 ```bash
 whatsapp-cli send --to RECIPIENT --message TEXT
+whatsapp-cli send --to RECIPIENT --image PATH [--caption TEXT]
 ```
 
 **Parameters:**
@@ -578,7 +579,11 @@ whatsapp-cli send --to RECIPIENT --message TEXT
 | Flag | Type | Required | Default | Description |
 |------|------|----------|---------|-------------|
 | `--to` | string | Yes | - | Phone number or JID |
-| `--message` | string | Yes | - | Message text content |
+| `--message` | string | No* | - | Message text content |
+| `--image` | string | No* | - | Image file path to upload and send |
+| `--caption` | string | No | - | Caption for image messages |
+
+*One of `--message` or `--image` is required. They are mutually exclusive.
 
 **Recipient Formats:**
 
@@ -631,9 +636,9 @@ whatsapp-cli send --to 1234567890 --message "Server status: $(uptime)"
 - Supports Unicode (emojis, international characters)
 
 **Limitations:**
-- Send command currently supports text only (download attachments via `media download`)
 - No delivery/read receipt information returned
 - Maximum message length: WhatsApp's standard limit (~65,536 characters)
+- Image sending supports common formats (JPEG, PNG, GIF, WebP); video/audio/document sending not yet supported
 
 ---
 
@@ -1595,7 +1600,7 @@ A: Yes, WhatsApp supports up to 5 linked devices.
 ### Features
 
 **Q: Can I send images/videos?**
-A: Not yet. Currently text-only. Media support planned for future release.
+A: Images yes — use `send --to RECIPIENT --image PATH`. Video/audio/document sending is not yet supported.
 
 **Q: Can I create/manage groups?**
 A: Not yet. Read-only access to groups currently.

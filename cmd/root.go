@@ -32,7 +32,11 @@ func errorJSON(msg string) string {
 	return fmt.Sprintf(`{"success":false,"data":null,"error":%s}`, escaped)
 }
 
-// printResult writes a JSON result to stdout and sets exit code.
+// exitCode is set by runWithApp to signal the process exit code.
+// Execute() reads this after rootCmd.Execute() returns.
+var exitCode int
+
+// printResult writes a JSON result to stdout and records the exit code.
 // Parses the success field from app method output to determine exit code.
 // This is the ONLY function that writes to stdout.
 func printResult(result string) {
@@ -42,7 +46,7 @@ func printResult(result string) {
 		Success bool `json:"success"`
 	}
 	if err := json.Unmarshal([]byte(result), &envelope); err != nil || !envelope.Success {
-		os.Exit(1)
+		exitCode = 1
 	}
 }
 
@@ -107,9 +111,12 @@ func newContext(isSync bool) (context.Context, context.CancelFunc) {
 
 // runWithApp wraps a command function that needs the app initialized.
 // Handles init, execution, cleanup, and result printing.
+// Init errors are runtime failures (exit 1), not usage errors (exit 2),
+// so they go through printResult rather than returning to cobra.
 func runWithApp(fn func() string) error {
 	if err := initApp(); err != nil {
-		return err
+		printResult(errorJSON(err.Error()))
+		return nil
 	}
 	defer closeApp()
 	printResult(fn())
@@ -122,5 +129,8 @@ func Execute() {
 		// Print properly-escaped JSON to stdout, exit 2 for usage errors.
 		fmt.Println(errorJSON(err.Error()))
 		os.Exit(2)
+	}
+	if exitCode != 0 {
+		os.Exit(exitCode)
 	}
 }

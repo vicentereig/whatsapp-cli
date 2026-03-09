@@ -26,6 +26,7 @@ var messagesCmd = &cobra.Command{
 var messagesListCmd = &cobra.Command{
 	Use:   "list",
 	Short: "List messages in a chat",
+	Args:  cobra.NoArgs,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		chatJID, _ := cmd.Flags().GetString("chat")
 		limit, _ := cmd.Flags().GetInt("limit")
@@ -39,6 +40,7 @@ var messagesListCmd = &cobra.Command{
 var messagesSearchCmd = &cobra.Command{
 	Use:   "search",
 	Short: "Search messages by text",
+	Args:  cobra.NoArgs,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		query, _ := cmd.Flags().GetString("query")
 		limit, _ := cmd.Flags().GetInt("limit")

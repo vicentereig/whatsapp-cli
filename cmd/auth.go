@@ -5,6 +5,7 @@ import "github.com/spf13/cobra"
 var authCmd = &cobra.Command{
 	Use:   "auth",
 	Short: "Authenticate with WhatsApp (scan QR code)",
+	Args:  cobra.NoArgs,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		return runWithApp(func() string {
 			ctx, cancel := newContext(false)

@@ -152,6 +152,43 @@ func TestCLI_Help_StderrOnly(t *testing.T) {
 	}
 }
 
+func TestCLI_InitFailure_Exits1_Not2(t *testing.T) {
+	binary := buildBinary(t)
+
+	// /dev/null/wa is an invalid path — triggers runtime init failure, not usage error
+	stdout, _, exitCode := runCLI(t, binary,
+		"send", "--to", "123", "--message", "hi", "--store", "/dev/null/wa")
+	if exitCode != 1 {
+		t.Fatalf("init failure should exit 1, got %d", exitCode)
+	}
+	assertValidJSON(t, stdout, false)
+}
+
+func TestCLI_StrayArgs_Rejected(t *testing.T) {
+	binary := buildBinary(t)
+
+	tests := []struct {
+		name string
+		args []string
+	}{
+		{"version banana", []string{"version", "banana"}},
+		{"auth extra", []string{"auth", "extra"}},
+		{"sync extra", []string{"sync", "extra"}},
+		{"send extra", []string{"send", "--to", "123", "--message", "hi", "extra"}},
+		{"messages list extra", []string{"messages", "list", "extra"}},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			stdout, _, exitCode := runCLI(t, binary, tt.args...)
+			if exitCode == 0 {
+				t.Errorf("stray args should exit non-zero for %v", tt.args)
+			}
+			assertValidJSON(t, stdout, false)
+		})
+	}
+}
+
 func TestCLI_StorePersistentFlag(t *testing.T) {
 	binary := buildBinary(t)
 

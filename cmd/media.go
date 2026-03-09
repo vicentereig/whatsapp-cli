@@ -18,6 +18,7 @@ var mediaCmd = &cobra.Command{
 var mediaDownloadCmd = &cobra.Command{
 	Use:   "download",
 	Short: "Download media for a message",
+	Args:  cobra.NoArgs,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		messageID, _ := cmd.Flags().GetString("message-id")
 		chatJID, _ := cmd.Flags().GetString("chat")

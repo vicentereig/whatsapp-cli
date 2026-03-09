@@ -18,6 +18,7 @@ var chatsCmd = &cobra.Command{
 var chatsListCmd = &cobra.Command{
 	Use:   "list",
 	Short: "List recent chats",
+	Args:  cobra.NoArgs,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		query, _ := cmd.Flags().GetString("query")
 		limit, _ := cmd.Flags().GetInt("limit")

@@ -9,6 +9,7 @@ import (
 var sendCmd = &cobra.Command{
 	Use:   "send",
 	Short: "Send a message or image",
+	Args:  cobra.NoArgs,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		to, _ := cmd.Flags().GetString("to")
 		message, _ := cmd.Flags().GetString("message")

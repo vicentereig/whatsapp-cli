@@ -18,6 +18,7 @@ var contactsCmd = &cobra.Command{
 var contactsSearchCmd = &cobra.Command{
 	Use:   "search",
 	Short: "Search contacts by name",
+	Args:  cobra.NoArgs,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		query, _ := cmd.Flags().GetString("query")
 		return runWithApp(func() string {
