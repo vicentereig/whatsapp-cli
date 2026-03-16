@@ -16,18 +16,20 @@ import (
 	"github.com/vicentereig/whatsapp-cli/internal/client"
 	"github.com/vicentereig/whatsapp-cli/internal/output"
 	"github.com/vicentereig/whatsapp-cli/internal/store"
+	"github.com/vicentereig/whatsapp-cli/internal/types"
 	"go.mau.fi/whatsmeow/types/events"
 )
 
 type App struct {
-	client          *client.WAClient
-	store           *store.MessageStore
+	client          WAClient
+	store           MessageStore
 	version         string
 	storeDir        string
 	mediaDownloader func(ctx context.Context, info store.MessageDownloadInfo, targetPath string) (int64, error)
 	mediaWorker     *mediaDownloadWorker
 }
 
+// NewApp creates a new App with production dependencies.
 func NewApp(storeDir, version string) (*App, error) {
 	cli, err := client.NewWAClient(storeDir)
 	if err != nil {
@@ -48,6 +50,17 @@ func NewApp(storeDir, version string) (*App, error) {
 	}
 	app.mediaDownloader = app.downloadMediaWithClient
 	return app, nil
+}
+
+// NewAppWithDeps creates a new App with injected dependencies for testing.
+func NewAppWithDeps(client WAClient, store MessageStore, storeDir, version string) *App {
+	app := &App{
+		client:   client,
+		store:    store,
+		version:  version,
+		storeDir: storeDir,
+	}
+	return app
 }
 
 func (a *App) Close() {
@@ -116,45 +129,91 @@ func (a *App) ListChats(query *string, limit, page int) string {
 	return output.Success(chats)
 }
 
+// recipientToJID normalizes a recipient string to a full JID.
+func recipientToJID(recipient string) string {
+	if strings.Contains(recipient, "@") {
+		return recipient
+	}
+	return recipient + "@s.whatsapp.net"
+}
+
 func (a *App) SendMessage(ctx context.Context, recipient, message string) string {
 	if err := a.client.Connect(ctx); err != nil {
 		return output.Error(err)
 	}
 
-	if err := a.client.SendMessage(ctx, recipient, message); err != nil {
+	msgID, err := a.client.SendMessage(ctx, recipient, message)
+	if err != nil {
 		return output.Error(err)
 	}
 
-	// Store the message
 	timestamp := time.Now()
-	chatJID := recipient
-	if !contains(recipient, "@") {
-		chatJID = recipient + "@s.whatsapp.net"
-	}
+	chatJID := recipientToJID(recipient)
 
-	// Resolve a friendly chat name when available (falls back to JID/recipient)
 	chatName := a.client.ResolveChatName(ctx, chatJID, nil)
 	if chatName == "" {
 		chatName = recipient
 	}
 
-	// Store chat if needed
-	a.store.StoreChat(chatJID, chatName, timestamp)
-	a.store.StoreMessage(
-		fmt.Sprintf("%d", timestamp.Unix()),
-		chatJID,
-		"me",
-		message,
-		timestamp,
-		true,
+	if err := a.store.StoreChat(chatJID, chatName, timestamp); err != nil {
+		return output.Error(fmt.Errorf("storing chat: %w", err))
+	}
+	if err := a.store.StoreMessage(
+		msgID, chatJID, "me", message, timestamp, true,
 		"", "", "", "", "",
 		nil, nil, nil, 0,
-	)
+	); err != nil {
+		return output.Error(fmt.Errorf("storing message: %w", err))
+	}
 
 	return output.Success(map[string]interface{}{
 		"sent":      true,
+		"id":        msgID,
 		"recipient": recipient,
 		"message":   message,
+	})
+}
+
+func (a *App) SendImage(ctx context.Context, recipient, imagePath, caption string) string {
+	if err := a.client.Connect(ctx); err != nil {
+		return output.Error(err)
+	}
+
+	msgID, err := a.client.SendImageMessage(ctx, recipient, imagePath, caption)
+	if err != nil {
+		return output.Error(err)
+	}
+
+	timestamp := time.Now()
+	chatJID := recipientToJID(recipient)
+
+	chatName := a.client.ResolveChatName(ctx, chatJID, nil)
+	if chatName == "" {
+		chatName = recipient
+	}
+
+	content := caption
+	if content == "" {
+		content = "[Image]"
+	}
+
+	if err := a.store.StoreChat(chatJID, chatName, timestamp); err != nil {
+		return output.Error(fmt.Errorf("storing chat: %w", err))
+	}
+	if err := a.store.StoreMessage(
+		msgID, chatJID, "me", content, timestamp, true,
+		"image", filepath.Base(imagePath), "", "", "",
+		nil, nil, nil, 0,
+	); err != nil {
+		return output.Error(fmt.Errorf("storing message: %w", err))
+	}
+
+	return output.Success(map[string]interface{}{
+		"sent":      true,
+		"id":        msgID,
+		"recipient": recipient,
+		"image":     imagePath,
+		"caption":   caption,
 	})
 }
 
@@ -338,7 +397,7 @@ func (a *App) downloadMediaWithClient(ctx context.Context, info store.MessageDow
 	if err := a.client.Connect(ctx); err != nil {
 		return 0, err
 	}
-	req := client.MediaDownloadRequest{
+	req := types.MediaDownloadRequest{
 		DirectPath:    info.DirectPath,
 		MediaKey:      info.MediaKey,
 		FileSHA256:    info.FileSHA256,
@@ -459,9 +518,9 @@ func (w *mediaDownloadWorker) run() {
 func (w *mediaDownloadWorker) trackError(err error) {
 	errStr := err.Error()
 	// Check for expected expired/deleted media errors
-	isExpired := contains(errStr, "status code 403") ||
-		contains(errStr, "status code 404") ||
-		contains(errStr, "status code 410")
+	isExpired := strings.Contains(errStr, "status code 403") ||
+		strings.Contains(errStr, "status code 404") ||
+		strings.Contains(errStr, "status code 410")
 
 	w.mu.Lock()
 	defer w.mu.Unlock()
@@ -526,15 +585,6 @@ func (w *mediaDownloadWorker) Stop() {
 		w.cancel()
 	}
 	w.wg.Wait()
-}
-
-func contains(s, substr string) bool {
-	for i := 0; i < len(s); i++ {
-		if i+len(substr) <= len(s) && s[i:i+len(substr)] == substr {
-			return true
-		}
-	}
-	return false
 }
 
 // Sync connects to WhatsApp and continuously syncs messages to the database

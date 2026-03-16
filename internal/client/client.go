@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"fmt"
 	"math"
+	"mime"
 	"os"
 	"path/filepath"
 	"strings"
@@ -12,10 +13,11 @@ import (
 
 	_ "github.com/mattn/go-sqlite3"
 	"github.com/mdp/qrterminal"
+	"github.com/vicentereig/whatsapp-cli/internal/types"
 	"go.mau.fi/whatsmeow"
 	waProto "go.mau.fi/whatsmeow/binary/proto"
 	"go.mau.fi/whatsmeow/store/sqlstore"
-	"go.mau.fi/whatsmeow/types"
+	waTypes "go.mau.fi/whatsmeow/types"
 	"go.mau.fi/whatsmeow/types/events"
 	waLog "go.mau.fi/whatsmeow/util/log"
 	"google.golang.org/protobuf/proto"
@@ -25,8 +27,8 @@ type WAClient struct {
 	client          *whatsmeow.Client
 	storeDir        string
 	eventHandler    func(interface{})
-	contactLookup   func(ctx context.Context, user types.JID) (types.ContactInfo, error)
-	groupInfoLookup func(ctx context.Context, jid types.JID) (*types.GroupInfo, error)
+	contactLookup   func(ctx context.Context, user waTypes.JID) (waTypes.ContactInfo, error)
+	groupInfoLookup func(ctx context.Context, jid waTypes.JID) (*waTypes.GroupInfo, error)
 }
 
 type MediaInfo struct {
@@ -52,15 +54,6 @@ type MessageDetails struct {
 	Media     *MediaInfo
 }
 
-type MediaDownloadRequest struct {
-	DirectPath    string
-	MediaKey      []byte
-	FileSHA256    []byte
-	FileEncSHA256 []byte
-	FileLength    uint64
-	MediaType     string
-	MimeType      string
-}
 
 func NewWAClient(storeDir string) (*WAClient, error) {
 	// Create store directory
@@ -111,11 +104,10 @@ func (w *WAClient) Authenticate(ctx context.Context) error {
 
 	for evt := range qrChan {
 		if evt.Event == "code" {
-			fmt.Println("\nScan this QR code with your WhatsApp app:")
-			// Use Medium error correction and compact output
-			qrterminal.GenerateHalfBlock(evt.Code, qrterminal.M, os.Stdout)
+			fmt.Fprintln(os.Stderr, "\nScan this QR code with your WhatsApp app:")
+			qrterminal.GenerateHalfBlock(evt.Code, qrterminal.M, os.Stderr)
 		} else if evt.Event == "success" {
-			fmt.Println("\n✓ Successfully authenticated!")
+			fmt.Fprintln(os.Stderr, "\n✓ Successfully authenticated!")
 			return nil
 		}
 	}
@@ -145,48 +137,97 @@ func (w *WAClient) Disconnect() {
 	}
 }
 
-func (w *WAClient) SendMessage(ctx context.Context, recipient, message string) error {
+func (w *WAClient) SendMessage(ctx context.Context, recipient, message string) (string, error) {
 	if !w.client.IsConnected() {
-		return fmt.Errorf("not connected to WhatsApp")
+		return "", fmt.Errorf("not connected to WhatsApp")
 	}
 
 	recipientJID, err := parseJID(recipient)
 	if err != nil {
-		return err
+		return "", fmt.Errorf("parsing recipient: %w", err)
 	}
 
-	msg := &waProto.Message{
+	resp, err := w.client.SendMessage(ctx, recipientJID, &waProto.Message{
 		Conversation: proto.String(message),
+	})
+	if err != nil {
+		return "", err
+	}
+	return resp.ID, nil
+}
+
+func (w *WAClient) SendImageMessage(ctx context.Context, recipient, imagePath, caption string) (string, error) {
+	if !w.client.IsConnected() {
+		return "", fmt.Errorf("not connected to WhatsApp")
 	}
 
-	_, err = w.client.SendMessage(ctx, recipientJID, msg)
-	return err
+	recipientJID, err := parseJID(recipient)
+	if err != nil {
+		return "", fmt.Errorf("parsing recipient: %w", err)
+	}
+
+	data, err := os.ReadFile(imagePath)
+	if err != nil {
+		return "", fmt.Errorf("reading image file: %w", err)
+	}
+
+	mimeType := mimeTypeFromExtension(imagePath)
+
+	uploadResp, err := w.client.Upload(ctx, data, whatsmeow.MediaImage)
+	if err != nil {
+		return "", fmt.Errorf("uploading image: %w", err)
+	}
+
+	sendResp, err := w.client.SendMessage(ctx, recipientJID, &waProto.Message{
+		ImageMessage: &waProto.ImageMessage{
+			Caption:       proto.String(caption),
+			Mimetype:      proto.String(mimeType),
+			URL:           &uploadResp.URL,
+			DirectPath:    &uploadResp.DirectPath,
+			MediaKey:      uploadResp.MediaKey,
+			FileEncSHA256: uploadResp.FileEncSHA256,
+			FileSHA256:    uploadResp.FileSHA256,
+			FileLength:    &uploadResp.FileLength,
+		},
+	})
+	if err != nil {
+		return "", fmt.Errorf("sending image message: %w", err)
+	}
+	return sendResp.ID, nil
+}
+
+func mimeTypeFromExtension(path string) string {
+	ext := strings.ToLower(filepath.Ext(path))
+	if mtype := mime.TypeByExtension(ext); mtype != "" {
+		return mtype
+	}
+	return "image/jpeg"
 }
 
 func (w *WAClient) AddEventHandler(handler func(interface{})) {
 	w.client.AddEventHandler(handler)
 }
 
-func contactLookupFunc(cli *whatsmeow.Client) func(ctx context.Context, user types.JID) (types.ContactInfo, error) {
+func contactLookupFunc(cli *whatsmeow.Client) func(ctx context.Context, user waTypes.JID) (waTypes.ContactInfo, error) {
 	if cli == nil || cli.Store == nil || cli.Store.Contacts == nil {
 		return nil
 	}
-	return func(ctx context.Context, user types.JID) (types.ContactInfo, error) {
+	return func(ctx context.Context, user waTypes.JID) (waTypes.ContactInfo, error) {
 		return cli.Store.Contacts.GetContact(ctx, user)
 	}
 }
 
-func groupInfoLookupFunc(cli *whatsmeow.Client) func(ctx context.Context, jid types.JID) (*types.GroupInfo, error) {
+func groupInfoLookupFunc(cli *whatsmeow.Client) func(ctx context.Context, jid waTypes.JID) (*waTypes.GroupInfo, error) {
 	if cli == nil {
 		return nil
 	}
-	return func(ctx context.Context, jid types.JID) (*types.GroupInfo, error) {
+	return func(ctx context.Context, jid waTypes.JID) (*waTypes.GroupInfo, error) {
 		info, err := cli.GetGroupInfo(ctx, jid)
 		return info, err
 	}
 }
 
-func bestContactName(info types.ContactInfo) string {
+func bestContactName(info waTypes.ContactInfo) string {
 	if !info.Found {
 		return ""
 	}
@@ -208,16 +249,22 @@ func bestContactName(info types.ContactInfo) string {
 	return ""
 }
 
-func (w *WAClient) ResolveChatName(ctx context.Context, chatJID string, msg *events.Message) string {
+func (w *WAClient) ResolveChatName(ctx context.Context, chatJID string, evt interface{}) string {
+	// Type assert to *events.Message if provided
+	var msg *events.Message
+	if evt != nil {
+		msg, _ = evt.(*events.Message)
+	}
+
 	if chatJID == "" && msg != nil {
 		chatJID = msg.Info.Chat.String()
 	}
 	fallback := chatJID
 
-	parsed, err := types.ParseJID(chatJID)
+	parsed, err := waTypes.ParseJID(chatJID)
 	if err == nil {
 		// Group chats
-		if parsed.Server == types.GroupServer || parsed.IsBroadcastList() {
+		if parsed.Server == waTypes.GroupServer || parsed.IsBroadcastList() {
 			if w.groupInfoLookup != nil {
 				if info, err := w.groupInfoLookup(ctx, parsed); err == nil && info != nil {
 					if name := strings.TrimSpace(info.GroupName.Name); name != "" {
@@ -258,29 +305,21 @@ func (w *WAClient) StartSync(ctx context.Context, eventHandler func(interface{})
 	return nil
 }
 
-func parseJID(recipient string) (types.JID, error) {
+func parseJID(recipient string) (waTypes.JID, error) {
 	// If already a JID, parse it
-	if contains(recipient, "@") {
-		return types.ParseJID(recipient)
+	if strings.Contains(recipient, "@") {
+		return waTypes.ParseJID(recipient)
 	}
 
 	// Otherwise, assume it's a phone number
-	return types.JID{
+	return waTypes.JID{
 		User:   recipient,
 		Server: "s.whatsapp.net",
 	}, nil
 }
 
-func contains(s, substr string) bool {
-	for i := 0; i < len(s); i++ {
-		if s[i] == substr[0] {
-			return true
-		}
-	}
-	return false
-}
 
-func (w *WAClient) DownloadMediaToFile(ctx context.Context, req MediaDownloadRequest, targetPath string) (int64, error) {
+func (w *WAClient) DownloadMediaToFile(ctx context.Context, req types.MediaDownloadRequest, targetPath string) (int64, error) {
 	if w == nil || w.client == nil {
 		return 0, fmt.Errorf("whatsapp client is not initialized")
 	}
