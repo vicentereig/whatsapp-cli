@@ -171,7 +171,11 @@ func main() {
 		query := messagesCmd.String("query", "", "search query")
 		limit := messagesCmd.Int("limit", 20, "limit")
 		page := messagesCmd.Int("page", 0, "page")
-		messagesCmd.Parse(args[2:])
+		// Parse from args[2:] to skip subcommand ("list"/"search") —
+		// Go's flag parser stops at the first non-flag argument.
+		if len(args) > 2 {
+			messagesCmd.Parse(args[2:])
+		}
 
 		switch subcommand {
 		case "search":
@@ -187,7 +191,11 @@ func main() {
 		requireSubcommand(args, "contacts", []string{"search"})
 		contactsCmd := flag.NewFlagSet("contacts", flag.ExitOnError)
 		query := contactsCmd.String("query", "", "search query")
-		contactsCmd.Parse(args[2:])
+		// Parse from args[2:] to skip subcommand ("search") —
+		// Go's flag parser stops at the first non-flag argument.
+		if len(args) > 2 {
+			contactsCmd.Parse(args[2:])
+		}
 
 		if *query == "" {
 			exitJSON("contacts search requires --query")
@@ -200,7 +208,11 @@ func main() {
 		query := chatsCmd.String("query", "", "search query")
 		limit := chatsCmd.Int("limit", 20, "limit")
 		page := chatsCmd.Int("page", 0, "page")
-		chatsCmd.Parse(args[2:])
+		// Parse from args[2:] to skip subcommand ("list") —
+		// Go's flag parser stops at the first non-flag argument.
+		if len(args) > 2 {
+			chatsCmd.Parse(args[2:])
+		}
 
 		result = app.ListChats(optionalStr(*query), *limit, *page)
 
