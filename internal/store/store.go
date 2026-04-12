@@ -38,7 +38,59 @@ type Contact struct {
 }
 
 type MessageStore struct {
+	db          *sql.DB
+	lidResolver *LIDResolver
+}
+
+// LIDResolver resolves LID JIDs to phone-number JIDs using whatsmeow's lid_map table.
+type LIDResolver struct {
 	db *sql.DB
+}
+
+// NewLIDResolver opens the whatsmeow database and provides LID<->phone resolution.
+func NewLIDResolver(whatsmeowDBPath string) (*LIDResolver, error) {
+	db, err := sql.Open("sqlite3", fmt.Sprintf("file:%s?_foreign_keys=on&mode=ro", whatsmeowDBPath))
+	if err != nil {
+		return nil, fmt.Errorf("failed to open whatsmeow db: %w", err)
+	}
+	return &LIDResolver{db: db}, nil
+}
+
+// LIDToPhone resolves a LID to a phone-number JID (e.g. "123@lid" -> "12025551234@s.whatsapp.net").
+// Returns the original JID if no mapping is found or the JID is not a LID.
+func (r *LIDResolver) LIDToPhone(jid string) string {
+	if r == nil || !strings.HasSuffix(jid, "@lid") {
+		return jid
+	}
+	lid := strings.TrimSuffix(jid, "@lid")
+	var pn string
+	err := r.db.QueryRow("SELECT pn FROM whatsmeow_lid_map WHERE lid = ?", lid).Scan(&pn)
+	if err != nil || pn == "" {
+		return jid
+	}
+	return pn + "@s.whatsapp.net"
+}
+
+// PhoneToLID resolves a phone-number JID to a LID JID (e.g. "12025551234@s.whatsapp.net" -> "123@lid").
+// Returns empty string if no mapping is found.
+func (r *LIDResolver) PhoneToLID(jid string) string {
+	if r == nil || !strings.HasSuffix(jid, "@s.whatsapp.net") {
+		return ""
+	}
+	pn := strings.TrimSuffix(jid, "@s.whatsapp.net")
+	var lid string
+	err := r.db.QueryRow("SELECT lid FROM whatsmeow_lid_map WHERE pn = ?", pn).Scan(&lid)
+	if err != nil || lid == "" {
+		return ""
+	}
+	return lid + "@lid"
+}
+
+func (r *LIDResolver) Close() error {
+	if r == nil {
+		return nil
+	}
+	return r.db.Close()
 }
 
 type MessageDownloadInfo struct {
@@ -133,6 +185,11 @@ func NewMessageStore(dbPath string) (*MessageStore, error) {
 	return &MessageStore{db: db}, nil
 }
 
+// SetLIDResolver attaches a LID resolver for transparent LID<->phone JID mapping.
+func (s *MessageStore) SetLIDResolver(r *LIDResolver) {
+	s.lidResolver = r
+}
+
 func ensureMessageColumns(db *sql.DB) error {
 	required := map[string]string{
 		"direct_path":   "TEXT",
@@ -182,10 +239,22 @@ func columnExists(db *sql.DB, table, column string) (bool, error) {
 }
 
 func (s *MessageStore) Close() error {
+	if s.lidResolver != nil {
+		s.lidResolver.Close()
+	}
 	return s.db.Close()
 }
 
+// resolveLID resolves a @lid JID to a @s.whatsapp.net JID if a mapping exists.
+func (s *MessageStore) resolveLID(jid string) string {
+	if s.lidResolver == nil {
+		return jid
+	}
+	return s.lidResolver.LIDToPhone(jid)
+}
+
 func (s *MessageStore) StoreChat(jid, name string, lastMessageTime time.Time) error {
+	jid = s.resolveLID(jid)
 	_, err := s.db.Exec(
 		`INSERT INTO chats (jid, name, last_message_time) VALUES (?, ?, ?)
 		ON CONFLICT(jid) DO UPDATE SET
@@ -202,6 +271,7 @@ func (s *MessageStore) StoreChat(jid, name string, lastMessageTime time.Time) er
 
 func (s *MessageStore) StoreMessage(id, chatJID, sender, content string, timestamp time.Time, isFromMe bool,
 	mediaType, filename, url, directPath, mimeType string, mediaKey, fileSHA256, fileEncSHA256 []byte, fileLength uint64) error {
+	chatJID = s.resolveLID(chatJID)
 	intFileLength := int64(0)
 	if fileLength > 0 {
 		intFileLength = int64(fileLength)
@@ -248,8 +318,21 @@ func (s *MessageStore) ListMessages(params ListMessagesParams) ([]Message, error
 		args = append(args, *params.Sender)
 	}
 	if params.ChatJID != nil {
-		query += " AND m.chat_jid = ?"
-		args = append(args, *params.ChatJID)
+		resolvedJID := s.resolveLID(*params.ChatJID)
+		if s.lidResolver != nil {
+			// Also match the LID variant so queries by phone JID find LID-stored messages
+			lidJID := s.lidResolver.PhoneToLID(resolvedJID)
+			if lidJID != "" {
+				query += " AND m.chat_jid IN (?, ?)"
+				args = append(args, resolvedJID, lidJID)
+			} else {
+				query += " AND m.chat_jid = ?"
+				args = append(args, resolvedJID)
+			}
+		} else {
+			query += " AND m.chat_jid = ?"
+			args = append(args, resolvedJID)
+		}
 	}
 	if params.Query != nil {
 		query += " AND LOWER(m.content) LIKE LOWER(?)"

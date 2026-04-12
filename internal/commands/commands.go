@@ -42,6 +42,12 @@ func NewApp(storeDir, version string) (*App, error) {
 		return nil, err
 	}
 
+	// Attach LID resolver for transparent LID<->phone JID mapping
+	whatsmeowDBPath := filepath.Join(storeDir, "whatsapp.db")
+	if lidResolver, err := store.NewLIDResolver(whatsmeowDBPath); err == nil {
+		st.SetLIDResolver(lidResolver)
+	}
+
 	app := &App{
 		client:   cli,
 		store:    st,
