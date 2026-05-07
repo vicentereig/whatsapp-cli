@@ -823,6 +823,201 @@ func (a *App) Sync(ctx context.Context) string {
 	})
 }
 
+// HistoryExtend triggers on-demand backfill of older messages from the user's
+// primary device. Wraps whatsmeow.Client.BuildHistorySyncRequest + a peer
+// SendMessage. Responses arrive as *events.HistorySync chunks (SyncType
+// ON_DEMAND) and flow through the same handler as the initial sync — i.e.
+// they land in messages.db without further wiring.
+//
+// Targeting:
+//   - chatJID set, all=false: extend just that chat
+//   - all=true: iterate every chat in the local store
+//
+// Per-chat loop walks the cursor backward: between requests we re-query for
+// the oldest stored message, which (assuming chunks landed) is now older than
+// the previous request's anchor. With `requests > 1` you get a sliding window.
+//
+// With untilStable=true the per-chat loop stops as soon as the cursor doesn't
+// advance between consecutive requests — that's the strongest local signal
+// that the phone has no older history for that chat. maxRounds caps the
+// per-chat iteration count for safety.
+//
+// The function blocks until ctx is cancelled (timeout from main.go or SIGINT
+// — same lifecycle as Sync) so chunks have time to arrive and be persisted.
+func (a *App) HistoryExtend(ctx context.Context, chatJID string, count, requests int, all, untilStable bool, maxRounds int) string {
+	if count <= 0 {
+		count = 50
+	}
+	if requests <= 0 {
+		requests = 1
+	}
+	if maxRounds <= 0 {
+		maxRounds = 20
+	}
+
+	// Decide target set BEFORE connecting so a typo fails fast.
+	var targets []string
+	if all {
+		chats, err := a.store.ListChats(store.ListChatsParams{Limit: 1000})
+		if err != nil {
+			return output.Error(fmt.Errorf("listing chats: %w", err))
+		}
+		for _, c := range chats {
+			targets = append(targets, c.JID)
+		}
+		if len(targets) == 0 {
+			return output.Error(fmt.Errorf("no chats in local store; run `sync` first"))
+		}
+	} else {
+		if strings.TrimSpace(chatJID) == "" {
+			return output.Error(fmt.Errorf("history extend requires --chat JID or --all"))
+		}
+		targets = []string{chatJID}
+	}
+
+	messageCount := 0
+
+	worker := newMediaDownloadWorker(a, 4)
+	worker.Start(ctx)
+	a.mediaWorker = worker
+	defer func() {
+		worker.Stop()
+		worker.PrintSummary()
+		if a.mediaWorker == worker {
+			a.mediaWorker = nil
+		}
+	}()
+
+	// Reuse the very same handler shape as Sync so ON_DEMAND chunks land in
+	// the existing storage path. (Local copy is intentional — keeps the diff
+	// surgical for upstreaming. A future refactor could extract this into a
+	// shared App method without changing behaviour.)
+	eventHandler := func(evt interface{}) {
+		switch v := evt.(type) {
+		case *events.Message:
+			details := client.HandleMessage(v)
+			a.store.StoreChat(details.ChatJID, a.client.ResolveChatName(ctx, details.ChatJID, v), details.Timestamp)
+			mt, fn, url, dp, mime := "", "", "", "", ""
+			var mk, sh, esh []byte
+			var fl uint64
+			if details.Media != nil {
+				mt, fn, url, dp, mime = details.Media.Type, details.Media.Filename, details.Media.URL, details.Media.DirectPath, details.Media.MimeType
+				mk, sh, esh, fl = details.Media.MediaKey, details.Media.FileSHA256, details.Media.FileEncSHA256, details.Media.FileLength
+			}
+			a.store.StoreMessage(details.ID, details.ChatJID, details.Sender, details.Content, details.Timestamp, details.IsFromMe, mt, fn, url, dp, mime, mk, sh, esh, fl)
+			messageCount++
+
+		case *events.HistorySync:
+			fmt.Fprintf(os.Stderr, "\n📜 on-demand chunk: %d conversations\n", len(v.Data.Conversations))
+			for _, conv := range v.Data.Conversations {
+				cjid := conv.GetID()
+				cname := conv.GetName()
+				if cname == "" {
+					cname = a.client.ResolveChatName(ctx, cjid, nil)
+					if cname == "" {
+						cname = cjid
+					}
+				}
+				for _, msg := range conv.Messages {
+					if msg.Message == nil {
+						continue
+					}
+					hm := msg.Message
+					mid := hm.Key.GetID()
+					sender := hm.Key.GetParticipant()
+					if sender == "" {
+						sender = hm.Key.GetRemoteJID()
+					}
+					ts := time.Unix(int64(hm.GetMessageTimestamp()), 0)
+					content := ""
+					switch {
+					case hm.Message.GetConversation() != "":
+						content = hm.Message.GetConversation()
+					case hm.Message.GetExtendedTextMessage() != nil:
+						content = hm.Message.GetExtendedTextMessage().GetText()
+					}
+					a.store.StoreChat(cjid, cname, ts)
+					a.store.StoreMessage(mid, cjid, sender, content, ts, hm.Key.GetFromMe(), "", "", "", "", "", nil, nil, nil, 0)
+					messageCount++
+				}
+			}
+			fmt.Fprintf(os.Stderr, "💬 cumulative messages this run: %d\n", messageCount)
+
+		case *events.Connected:
+			fmt.Fprintln(os.Stderr, "✓ Connected to WhatsApp")
+
+		case *events.Disconnected:
+			fmt.Fprintln(os.Stderr, "⚠ Disconnected from WhatsApp")
+		}
+	}
+
+	fmt.Fprintln(os.Stderr, "🚀 Starting on-demand history extend...")
+	if err := a.client.StartSync(ctx, eventHandler); err != nil {
+		return output.Error(err)
+	}
+
+	requestsSent := 0
+	skipped := 0
+	stableCount := 0
+	maxIter := requests
+	if untilStable {
+		maxIter = maxRounds
+	}
+	for _, jid := range targets {
+		var prevAnchor string
+		for r := 0; r < maxIter; r++ {
+			oldest, err := a.store.GetOldestMessage(jid)
+			if err != nil {
+				if errors.Is(err, sql.ErrNoRows) {
+					if r == 0 {
+						skipped++
+					}
+				} else {
+					fmt.Fprintf(os.Stderr, "  %s: cursor error: %v\n", jid, err)
+				}
+				break
+			}
+			// untilStable: if the cursor didn't advance after the previous request,
+			// the phone has no older history for this chat — stop early.
+			if untilStable && r > 0 && oldest.ID == prevAnchor {
+				fmt.Fprintf(os.Stderr, "  %s: stable after %d request(s)\n", jid, r)
+				stableCount++
+				break
+			}
+			prevAnchor = oldest.ID
+			if err := a.client.RequestMoreHistory(ctx, jid, oldest.ID, oldest.Timestamp, oldest.IsFromMe, oldest.Sender, count); err != nil {
+				fmt.Fprintf(os.Stderr, "  %s: request failed: %v\n", jid, err)
+				break
+			}
+			requestsSent++
+			fmt.Fprintf(os.Stderr, "  → %s (anchor=%s, %d) request %d\n", jid, oldest.ID, count, r+1)
+			// Brief pause so the response chunk lands and updates the oldest cursor
+			// before we ask again. Without this, the next request uses the same
+			// anchor and gets the same window back.
+			select {
+			case <-time.After(3 * time.Second):
+			case <-ctx.Done():
+				return finishHistoryExtend(messageCount, requestsSent, len(targets), skipped, stableCount)
+			}
+		}
+	}
+
+	fmt.Fprintf(os.Stderr, "\n📨 Sent %d on-demand requests across %d chat(s) (skipped %d empty, %d stable). Listening for chunks...\n", requestsSent, len(targets), skipped, stableCount)
+	<-ctx.Done()
+	return finishHistoryExtend(messageCount, requestsSent, len(targets), skipped, stableCount)
+}
+
+func finishHistoryExtend(messageCount, requestsSent, chatsTargeted, skipped, stable int) string {
+	return output.Success(map[string]interface{}{
+		"extended":       true,
+		"messages_count": messageCount,
+		"requests_sent":  requestsSent,
+		"chats_targeted": chatsTargeted,
+		"chats_skipped":  skipped,
+		"chats_stable":   stable,
+	})
+}
+
 func resolveVersion(version string, describeFn func() (string, error)) string {
 	if strings.TrimSpace(version) != "" && version != "dev" {
 		return version

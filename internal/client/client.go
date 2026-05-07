@@ -208,6 +208,68 @@ func (w *WAClient) AddEventHandler(handler func(interface{})) {
 	w.client.AddEventHandler(handler)
 }
 
+// RequestMoreHistory sends a peer message asking the user's primary device for
+// older messages in a chat than the supplied anchor. The phone responds with
+// an *events.HistorySync (SyncType ON_DEMAND) carrying up to `count` messages
+// preceding the anchor. The same StartSync event handler that ingests initial
+// HistorySync events ingests these too — no extra wiring needed.
+//
+// Cursor must reference an actual message in the chat; we use the oldest
+// locally-stored message. Recommended count per request is 50; WhatsApp may
+// return fewer (best-effort).
+//
+// Caveats: requires phone online; "Chat history: Paused" status on the linked
+// device (Linked Devices settings) suppresses responses.
+func (w *WAClient) RequestMoreHistory(ctx context.Context, chatJID, anchorMsgID string, anchorTimestamp time.Time, anchorIsFromMe bool, anchorSender string, count int) error {
+	if !w.client.IsConnected() {
+		return fmt.Errorf("not connected to WhatsApp")
+	}
+	if w.client.Store == nil || w.client.Store.ID == nil {
+		return fmt.Errorf("not authenticated")
+	}
+
+	chat, err := waTypes.ParseJID(chatJID)
+	if err != nil {
+		return fmt.Errorf("parsing chat JID: %w", err)
+	}
+
+	var sender waTypes.JID
+	if strings.TrimSpace(anchorSender) != "" {
+		// Stored sender may be a bare user id (e.g. "12025551234") for 1:1 chats —
+		// fall back to the chat JID itself when it isn't parseable as a full JID.
+		if parsed, perr := waTypes.ParseJID(anchorSender); perr == nil && parsed.Server != "" {
+			sender = parsed
+		}
+	}
+	if sender.IsEmpty() {
+		if anchorIsFromMe {
+			sender = w.client.Store.ID.ToNonAD()
+		} else {
+			sender = chat
+		}
+	}
+
+	cursor := &waTypes.MessageInfo{
+		MessageSource: waTypes.MessageSource{
+			Chat:     chat,
+			Sender:   sender,
+			IsFromMe: anchorIsFromMe,
+			IsGroup:  chat.Server == waTypes.GroupServer,
+		},
+		ID:        waTypes.MessageID(anchorMsgID),
+		Timestamp: anchorTimestamp,
+	}
+
+	msg := w.client.BuildHistorySyncRequest(cursor, count)
+	if msg == nil {
+		return fmt.Errorf("BuildHistorySyncRequest returned nil")
+	}
+
+	self := w.client.Store.ID.ToNonAD()
+	_, err = w.client.SendMessage(ctx, self, msg, whatsmeow.SendRequestExtra{Peer: true})
+	return err
+}
+
 func contactLookupFunc(cli *whatsmeow.Client) func(ctx context.Context, user waTypes.JID) (waTypes.ContactInfo, error) {
 	if cli == nil || cli.Store == nil || cli.Store.Contacts == nil {
 		return nil

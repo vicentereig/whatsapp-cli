@@ -48,6 +48,24 @@ Commands:
   send --to RECIPIENT --message TEXT                     Send a text message
   send --to RECIPIENT --image PATH [--caption TEXT]      Send an image
   media download --message-id ID [--chat JID] [--output PATH]   Download media for a message
+  history extend --chat JID [--count N] [--requests R | --until-stable [--max-rounds N]]
+                                    On-demand backfill of older messages for one chat.
+  history extend --all   [--count N] [--requests R | --until-stable [--max-rounds N]]
+                                    Same, iterating every chat in the local store.
+                                    With --until-stable, each chat stops being asked once
+                                    its oldest-message cursor doesn't advance.
+
+                                    Notes:
+                                    - Requires the WhatsApp app open and online on the
+                                      primary phone — the linked-device protocol relays
+                                      history through the phone, not via WA servers.
+                                    - Single-writer constraint on store/: do not run
+                                      'sync' and 'history extend' concurrently against
+                                      the same store directory; they will corrupt the
+                                      session.
+                                    - The phone's "Chat history: Paused" status under
+                                      Linked Devices does NOT block on-demand requests
+                                      despite what it suggests.
   version                           Print CLI version information
 
 Global Options:
@@ -141,8 +159,9 @@ func main() {
 	// Use different timeout for sync command
 	var ctx context.Context
 	var cancel context.CancelFunc
-	if command == "sync" {
-		// For sync, use signal-based cancellation
+	if command == "sync" || command == "history" {
+		// For sync and history extend, use signal-based cancellation
+		// (these are long-running, listening for incoming events).
 		ctx, cancel = context.WithCancel(context.Background())
 		sigChan := make(chan os.Signal, 1)
 		signal.Notify(sigChan, os.Interrupt, syscall.SIGTERM)
@@ -237,6 +256,23 @@ func main() {
 		} else {
 			exitJSON(`--message or --image required`)
 		}
+
+	case "history":
+		requireSubcommand(args, "history", []string{"extend"})
+		histCmd := flag.NewFlagSet("history extend", flag.ExitOnError)
+		chatJID := histCmd.String("chat", "", "chat JID to extend (mutually exclusive with --all)")
+		all := histCmd.Bool("all", false, "extend every chat in the local store")
+		count := histCmd.Int("count", 50, "messages to request per call (whatsmeow recommends 50)")
+		requests := histCmd.Int("requests", 1, "consecutive requests per chat — each walks the cursor further back")
+		untilStable := histCmd.Bool("until-stable", false, "stop requesting per chat when the cursor stops advancing (overrides --requests)")
+		maxRounds := histCmd.Int("max-rounds", 20, "with --until-stable: safety cap on per-chat iterations")
+		if len(args) > 2 {
+			histCmd.Parse(args[2:])
+		}
+		if (*chatJID == "") == (!*all) {
+			exitJSON("history extend requires exactly one of --chat or --all")
+		}
+		result = app.HistoryExtend(ctx, *chatJID, *count, *requests, *all, *untilStable, *maxRounds)
 
 	case "media":
 		requireSubcommand(args, "media", []string{"download"})

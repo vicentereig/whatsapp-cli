@@ -17,6 +17,7 @@ type MockMessageStore struct {
 	StoreMessageFunc        func(id, chatJID, sender, content string, timestamp time.Time, isFromMe bool, mediaType, filename, url, directPath, mimeType string, mediaKey, fileSHA256, fileEncSHA256 []byte, fileLength uint64) error
 	GetMessageForDownloadFunc func(id string, chatJID *string) (store.MessageDownloadInfo, error)
 	MarkMediaDownloadedFunc func(id, chatJID, localPath string, downloadedAt time.Time) error
+	GetOldestMessageFunc    func(chatJID string) (store.OldestMessageInfo, error)
 	CloseFunc               func() error
 }
 
@@ -69,6 +70,13 @@ func (m *MockMessageStore) MarkMediaDownloaded(id, chatJID, localPath string, do
 	return nil
 }
 
+func (m *MockMessageStore) GetOldestMessage(chatJID string) (store.OldestMessageInfo, error) {
+	if m.GetOldestMessageFunc != nil {
+		return m.GetOldestMessageFunc(chatJID)
+	}
+	return store.OldestMessageInfo{}, nil
+}
+
 func (m *MockMessageStore) Close() error {
 	if m.CloseFunc != nil {
 		return m.CloseFunc()
@@ -87,6 +95,7 @@ type MockWAClient struct {
 	ResolveChatNameFunc     func(ctx context.Context, jid string, evt interface{}) string
 	DownloadMediaToFileFunc func(ctx context.Context, req types.MediaDownloadRequest, targetPath string) (int64, error)
 	StartSyncFunc           func(ctx context.Context, eventHandler func(interface{})) error
+	RequestMoreHistoryFunc  func(ctx context.Context, chatJID, anchorMsgID string, anchorTimestamp time.Time, anchorIsFromMe bool, anchorSender string, count int) error
 }
 
 func (m *MockWAClient) IsAuthenticated() bool {
@@ -147,6 +156,13 @@ func (m *MockWAClient) DownloadMediaToFile(ctx context.Context, req types.MediaD
 func (m *MockWAClient) StartSync(ctx context.Context, eventHandler func(interface{})) error {
 	if m.StartSyncFunc != nil {
 		return m.StartSyncFunc(ctx, eventHandler)
+	}
+	return nil
+}
+
+func (m *MockWAClient) RequestMoreHistory(ctx context.Context, chatJID, anchorMsgID string, anchorTimestamp time.Time, anchorIsFromMe bool, anchorSender string, count int) error {
+	if m.RequestMoreHistoryFunc != nil {
+		return m.RequestMoreHistoryFunc(ctx, chatJID, anchorMsgID, anchorTimestamp, anchorIsFromMe, anchorSender, count)
 	}
 	return nil
 }

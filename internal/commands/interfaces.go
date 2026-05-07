@@ -32,6 +32,7 @@ type MessageStore interface {
 		mediaKey, fileSHA256, fileEncSHA256 []byte, fileLength uint64) error
 	GetMessageForDownload(id string, chatJID *string) (store.MessageDownloadInfo, error)
 	MarkMediaDownloaded(id, chatJID, localPath string, downloadedAt time.Time) error
+	GetOldestMessage(chatJID string) (store.OldestMessageInfo, error)
 	Close() error
 }
 
@@ -47,4 +48,5 @@ type WAClient interface {
 	ResolveChatName(ctx context.Context, jid string, evt interface{}) string
 	DownloadMediaToFile(ctx context.Context, req types.MediaDownloadRequest, targetPath string) (int64, error)
 	StartSync(ctx context.Context, eventHandler func(interface{})) error
+	RequestMoreHistory(ctx context.Context, chatJID, anchorMsgID string, anchorTimestamp time.Time, anchorIsFromMe bool, anchorSender string, count int) error
 }

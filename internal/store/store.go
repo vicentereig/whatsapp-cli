@@ -361,6 +361,44 @@ func (s *MessageStore) ListMessages(params ListMessagesParams) ([]Message, error
 	return messages, nil
 }
 
+// OldestMessageInfo is the minimal anchor needed to drive an on-demand
+// history sync request — i.e., the cursor BuildHistorySyncRequest needs.
+type OldestMessageInfo struct {
+	ID        string
+	Timestamp time.Time
+	IsFromMe  bool
+	Sender    string
+}
+
+// GetOldestMessage returns the earliest stored message in a chat. Used as the
+// anchor for whatsmeow.Client.BuildHistorySyncRequest to fetch messages older
+// than this point. Returns sql.ErrNoRows if no message exists for the chat.
+func (s *MessageStore) GetOldestMessage(chatJID string) (OldestMessageInfo, error) {
+	chatJID = s.resolveLID(chatJID)
+	jids := []string{chatJID}
+	if s.lidResolver != nil {
+		if lid := s.lidResolver.PhoneToLID(chatJID); lid != "" {
+			jids = append(jids, lid)
+		}
+	}
+
+	var info OldestMessageInfo
+	var query string
+	var args []interface{}
+	if len(jids) == 2 {
+		query = `SELECT id, timestamp, is_from_me, sender FROM messages
+		         WHERE chat_jid IN (?, ?) ORDER BY timestamp ASC LIMIT 1`
+		args = []interface{}{jids[0], jids[1]}
+	} else {
+		query = `SELECT id, timestamp, is_from_me, sender FROM messages
+		         WHERE chat_jid = ? ORDER BY timestamp ASC LIMIT 1`
+		args = []interface{}{jids[0]}
+	}
+
+	err := s.db.QueryRow(query, args...).Scan(&info.ID, &info.Timestamp, &info.IsFromMe, &info.Sender)
+	return info, err
+}
+
 func (s *MessageStore) SearchContacts(query string) ([]Contact, error) {
 	rows, err := s.db.Query(`
 		SELECT jid, name FROM chats
