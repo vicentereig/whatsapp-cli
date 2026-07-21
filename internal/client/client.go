@@ -4,7 +4,6 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	"math"
 	"mime"
 	"os"
 	"path/filepath"
@@ -344,12 +343,9 @@ func (w *WAClient) DownloadMediaToFile(ctx context.Context, req types.MediaDownl
 		}
 	}()
 
-	length := -1
-	if req.FileLength > 0 && req.FileLength < math.MaxInt32 {
-		length = int(req.FileLength)
-	}
-
-	if err := w.client.DownloadMediaWithPathToFile(ctx, req.DirectPath, req.FileEncSHA256, req.FileSHA256, req.MediaKey, length, mediaType, "", tmpFile); err != nil {
+	// whatsmeow dropped the fileLength parameter and added allowNoHash before file
+	// (2026-07 API change). We always have hashes here, so allowNoHash stays false.
+	if err := w.client.DownloadMediaWithPathToFile(ctx, req.DirectPath, req.FileEncSHA256, req.FileSHA256, req.MediaKey, mediaType, "", false, tmpFile); err != nil {
 		return 0, err
 	}
 
