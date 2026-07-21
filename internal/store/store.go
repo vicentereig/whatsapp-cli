@@ -131,9 +131,10 @@ type ListChatsParams struct {
 }
 
 func NewMessageStore(dbPath string) (*MessageStore, error) {
-	// Create directory if it doesn't exist
+	// 0700: messages.db holds the full plaintext message archive — contents,
+	// contact names and phone numbers. Not world-readable.
 	dir := filepath.Dir(dbPath)
-	if err := os.MkdirAll(dir, 0755); err != nil {
+	if err := os.MkdirAll(dir, 0700); err != nil {
 		return nil, fmt.Errorf("failed to create directory: %v", err)
 	}
 

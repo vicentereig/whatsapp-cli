@@ -55,8 +55,10 @@ type MessageDetails struct {
 
 
 func NewWAClient(storeDir string) (*WAClient, error) {
-	// Create store directory
-	if err := os.MkdirAll(storeDir, 0755); err != nil {
+	// 0700: this directory holds whatsapp.db, which contains the linked-device
+	// session keys. Anyone who can read it can impersonate the account on
+	// WhatsApp, so it must not be world-readable.
+	if err := os.MkdirAll(storeDir, 0700); err != nil {
 		return nil, fmt.Errorf("failed to create store directory: %v", err)
 	}
 

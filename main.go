@@ -82,6 +82,29 @@ func extractGlobalFlags(args []string) (string, []string) {
 	return storeDir, remaining
 }
 
+// checkStorePresence rejects commands that would otherwise silently create a
+// second, empty store.
+//
+// --store defaults to "./store", resolved against the CURRENT WORKING
+// DIRECTORY, and the store/client constructors create it unconditionally. So
+// running any command from the wrong directory creates an empty store rather
+// than reporting the mistake — and every later command run from there reads
+// that empty store and reports zero messages, which is indistinguishable from
+// data loss. An `auth` against such a directory is worse still: it leaves real
+// session keys somewhere nobody is tracking.
+//
+// `auth` is exempt because first-time setup legitimately has nothing to point
+// at yet.
+func checkStorePresence(command, absStoreDir string) error {
+	if command == "auth" {
+		return nil
+	}
+	if _, err := os.Stat(absStoreDir); os.IsNotExist(err) {
+		return fmt.Errorf("store does not exist: %s (run 'auth' to create it, or pass --store)", absStoreDir)
+	}
+	return nil
+}
+
 func exitJSON(msg string) {
 	fmt.Fprintf(os.Stderr, `{"success":false,"data":null,"error":"%s"}`+"\n", msg)
 	os.Exit(1)
@@ -130,6 +153,11 @@ func main() {
 		fmt.Fprintf(os.Stderr, `{"success":false,"data":null,"error":"invalid store path: %v"}`+"\n", err)
 		os.Exit(1)
 	}
+
+	if err := checkStorePresence(command, absStoreDir); err != nil {
+		exitJSON(err.Error())
+	}
+
 	app, err := commands.NewApp(absStoreDir, version)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, `{"success":false,"data":null,"error":"Failed to initialize: %v"}

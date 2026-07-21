@@ -34,6 +34,24 @@ func TestNewMessageStore(t *testing.T) {
 	assert.NoError(t, err)
 }
 
+// messages.db holds the full plaintext archive — message bodies, contact names
+// and phone numbers. The directory holding it must not be readable by other
+// local users.
+func TestNewMessageStoreCreatesPrivateDirectory(t *testing.T) {
+	tmpDir := t.TempDir()
+	storeDir := filepath.Join(tmpDir, "store")
+	dbPath := filepath.Join(storeDir, "messages.db")
+
+	store, err := NewMessageStore(dbPath)
+	require.NoError(t, err)
+	defer store.Close()
+
+	info, err := os.Stat(storeDir)
+	require.NoError(t, err)
+	assert.Equal(t, os.FileMode(0700), info.Mode().Perm(),
+		"store directory must be owner-only; it holds the plaintext message archive")
+}
+
 func TestStoreChat(t *testing.T) {
 	store := setupTestDB(t)
 

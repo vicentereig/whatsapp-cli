@@ -420,7 +420,11 @@ func (a *App) downloadMediaAndPersist(ctx context.Context, info store.MessageDow
 	if err != nil {
 		return "", 0, time.Time{}, err
 	}
-	if err := os.MkdirAll(filepath.Dir(finalPath), 0755); err != nil {
+	// 0700 to match the store: by default this resolves under store/media, and
+	// downloaded media is as private as the messages that carried it. The files
+	// themselves are already created 0600 by CreateTemp+Rename; without this the
+	// directory was the only part left world-readable.
+	if err := os.MkdirAll(filepath.Dir(finalPath), 0700); err != nil {
 		return "", 0, time.Time{}, fmt.Errorf("failed to create destination directory: %w", err)
 	}
 
