@@ -1,0 +1,90 @@
+/* whatsapp-cli · design tokens
+ * Theme: Studio (editorial genre · light paper · chromatic-green accent · high-contrast serif)
+ * Anchor hue: 150 (forest green) — deliberately not WhatsApp's brand green.
+ */
+
+:root {
+  /* Type */
+  --font-display: "Fraunces", ui-serif, Georgia, serif;
+  --font-body:    "IBM Plex Sans", ui-sans-serif, system-ui, sans-serif;
+  --font-mono:    "JetBrains Mono", ui-monospace, "SFMono-Regular", monospace;
+
+  --text-xs:   0.7rem;
+  --text-sm:   0.8125rem;
+  --text-base: 1rem;
+  --text-md:   1.1875rem;
+  --text-lg:   1.4375rem;
+  --text-xl:   1.75rem;
+  --text-2xl:  2.25rem;
+  --text-display-s: clamp(2.1rem, 3vw + 1rem, 2.9rem);
+  --text-display:   clamp(2.5rem, 4vw + 1rem, 3.6rem);
+
+  /* Space — 4pt scale */
+  --space-3xs: 0.125rem;
+  --space-2xs: 0.25rem;
+  --space-xs:  0.5rem;
+  --space-sm:  0.75rem;
+  --space-md:  1rem;
+  --space-lg:  1.5rem;
+  --space-xl:  2.5rem;
+  --space-2xl: 4rem;
+  --space-3xl: 6rem;
+  --space-4xl: 9rem;
+
+  /* Colour — light (default) */
+  --color-paper:      oklch(97% 0.012 150);
+  --color-paper-2:    oklch(94% 0.014 150);
+  --color-paper-3:    oklch(91% 0.016 150);
+  --color-rule:       oklch(82% 0.012 150);
+  --color-rule-2:     oklch(72% 0.014 150);
+  --color-neutral:    oklch(50% 0.010 150);
+  --color-muted:      oklch(42% 0.010 150);
+  --color-ink:        oklch(19% 0.012 150);
+  --color-ink-2:      oklch(26% 0.012 150);
+  --color-accent:     oklch(45% 0.130 152);
+  --color-accent-ink: oklch(98% 0.010 150);
+  --color-focus:      oklch(50% 0.150 152);
+  --color-error:      oklch(56% 0.180 25);
+
+  /* Terminal panels stay dark in both modes — real terminals are dark, this is content not chrome */
+  --color-terminal-bg:     oklch(15% 0.014 150);
+  --color-terminal-bg-2:   oklch(19% 0.016 150);
+  --color-terminal-ink:    oklch(92% 0.010 150);
+  --color-terminal-muted:  oklch(66% 0.012 150);
+  --color-terminal-accent: oklch(72% 0.135 152);
+
+  /* Motion */
+  --ease-out:    cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-in:     cubic-bezier(0.7, 0, 0.84, 0);
+  --ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
+  --dur-micro: 120ms;
+  --dur-short: 220ms;
+  --dur-long:  420ms;
+
+  /* Shadows — named, per layout-and-space.md § Depth */
+  --shadow-whisper: 0 1px 2px oklch(20% 0.01 150 / 0.08);
+
+  /* Z-scale */
+  --z-base: 1;
+  --z-raised: 10;
+  --z-sticky: 200;
+
+  --page-gutter: clamp(1rem, 4vw, 2.5rem);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --color-paper:      oklch(14% 0.012 150);
+    --color-paper-2:    oklch(18% 0.014 150);
+    --color-paper-3:    oklch(22% 0.016 150);
+    --color-rule:       oklch(30% 0.012 150);
+    --color-rule-2:     oklch(38% 0.014 150);
+    --color-neutral:    oklch(60% 0.009 150);
+    --color-muted:      oklch(70% 0.008 150);
+    --color-ink:        oklch(94% 0.008 150);
+    --color-ink-2:      oklch(88% 0.008 150);
+    --color-accent:     oklch(72% 0.120 152);
+    --color-accent-ink: oklch(14% 0.020 150);
+    --color-focus:      oklch(76% 0.130 152);
+  }
+}
