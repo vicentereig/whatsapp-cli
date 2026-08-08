@@ -26,19 +26,33 @@
   <main id="main">
 
     <section class="hero reveal" style="--i:0">
-      <div class="hero__inner">
-        <h1>WhatsApp, on the command line.</h1>
-        <p class="lede">Every command returns JSON. Sync once to a local SQLite store, then search, send, and script against it.</p>
+      <div class="hero__grid">
+        <div class="hero__inner">
+          <h1>WhatsApp, on the command line.</h1>
+          <p class="lede">Every command returns JSON. Sync once to a local SQLite store, then search, send, and script against it.</p>
 
-        <div class="install">
-          <p class="install__label">Install</p>
-          <div class="install__row">
-            <code class="install__cmd" id="install-cmd">brew install vicentereig/tap/whatsapp-cli</code>
-            <button class="copy-btn" data-copy-target="install-cmd" aria-label="Copy install command">
-              <span class="copy-btn__label">Copy</span>
-            </button>
+          <div class="install">
+            <p class="install__label">Install</p>
+            <div class="install__row">
+              <code class="install__cmd" id="install-cmd">brew install vicentereig/tap/whatsapp-cli</code>
+              <button class="copy-btn" data-copy-target="install-cmd" aria-label="Copy install command">
+                <span class="copy-btn__label">Copy</span>
+              </button>
+            </div>
+            <a class="link" href="https://github.com/vicentereig/whatsapp-cli#installation">Other install methods →</a>
           </div>
-          <a class="link" href="https://github.com/vicentereig/whatsapp-cli#installation">Other install methods →</a>
+        </div>
+
+        <div class="hero-window">
+          <div class="hero-window__bar">
+            <span class="hero-window__dots" aria-hidden="true"><i></i><i></i><i></i></span>
+            <span class="hero-window__label">whatsapp-cli sync</span>
+          </div>
+          <pre class="hero-window__body"><code>$ whatsapp-cli sync
+&#x1F680; Starting WhatsApp sync...
+&#x2713; Connected to WhatsApp
+&#x1F4AC; Synced 1234 messages...<span class="hero-window__caret" aria-hidden="true"></span></code></pre>
+          <a class="hero-window__link" href="#demo">Watch it live <span aria-hidden="true">&darr;</span></a>
         </div>
       </div>
     </section>

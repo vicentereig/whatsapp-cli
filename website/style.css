@@ -3,6 +3,13 @@
  * contrast: pass (40–41) · nav: N9 · footer: Ft4 · slop: pass (42–45)
  * honest: pass (46, caption labels the demo as illustrative) · chrome: pass (47, no re-drawn window chrome) · tokens: pass (48) · responsive: pass (49) · icons: pass (30, N/A — no icon library, emoji are verbatim CLI output text)
  * mobile: pass (34, 49, 50–57)
+ * 2026-08-08: added .hero-window — a compact terminal-preview card beside the
+ * hero headline (studied DNA from aiforactualwork.com's window vignette,
+ * re-dressed in this page's own square-edged Studio system, no border-radius
+ * added). Chrome gate 47 still passes: the dots are monochrome (not fake
+ * traffic lights) and the panel shows real, already-shipped `sync` output
+ * (see demo.js SYNC_LINES) linking to the actual interactive demo below —
+ * not decorative chrome around invented content.
  */
 
 @import url("tokens.css");
@@ -120,9 +127,16 @@ section {
   padding-block: var(--space-2xl) var(--space-3xl);
 }
 
+.hero__grid {
+  margin-inline: var(--page-gutter);
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--space-2xl);
+}
+
 .hero__inner {
   max-width: 42rem;
-  margin-inline: var(--page-gutter);
+  min-width: 0;
 }
 
 .hero h1 {
@@ -190,6 +204,92 @@ section {
   transition: text-decoration-color var(--dur-short) var(--ease-out);
 }
 .link:hover { text-decoration-color: var(--color-accent); }
+
+/* ---------- Hero window — compact terminal preview beside the headline ----------
+ * Same dark-terminal tokens as .terminal below (content, not chrome — see
+ * that section's comment). Dots are monochrome, not red/amber/green: real
+ * output, not a re-drawn browser mock. */
+
+.hero-window {
+  min-width: 0;
+  width: 100%;
+  max-width: 26rem;
+  border: 1px solid var(--color-rule-2);
+  background: var(--color-terminal-bg);
+  align-self: start;
+}
+
+.hero-window__bar {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  padding: var(--space-sm) var(--space-md);
+  border-bottom: 1px solid var(--color-rule-2);
+}
+
+.hero-window__dots {
+  display: flex;
+  gap: var(--space-3xs);
+  flex-shrink: 0;
+}
+.hero-window__dots i {
+  display: block;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--color-terminal-muted);
+}
+
+.hero-window__label {
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  color: var(--color-terminal-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.hero-window__body {
+  margin: 0;
+  padding: var(--space-md);
+  color: var(--color-terminal-ink);
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  line-height: 1.7;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.hero-window__caret {
+  display: inline-block;
+  width: 0.55em;
+  background: var(--color-terminal-accent);
+  animation: blink 1s steps(2) infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .hero-window__caret { animation: none; opacity: 1; }
+}
+
+.hero-window__link {
+  display: flex;
+  align-items: center;
+  gap: 0.35em;
+  min-height: 44px;
+  padding: 0 var(--space-md);
+  border-top: 1px solid var(--color-rule-2);
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  color: var(--color-terminal-muted);
+  text-decoration: none;
+  transition: color var(--dur-short) var(--ease-out),
+              background-color var(--dur-short) var(--ease-out);
+}
+.hero-window__link:hover {
+  color: var(--color-terminal-accent);
+  background: var(--color-terminal-bg-2);
+}
 
 /* ---------- Section head S2 — hanging ---------- */
 
@@ -433,5 +533,9 @@ section {
 }
 
 @media (min-width: 60rem) {
-  .hero__inner { margin-inline: max(var(--page-gutter), calc((100% - 64rem) / 2 + var(--page-gutter))); }
+  .hero__grid {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 22rem);
+    align-items: center;
+    margin-inline: max(var(--page-gutter), calc((100% - 64rem) / 2 + var(--page-gutter)));
+  }
 }
