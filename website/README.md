@@ -39,23 +39,26 @@ server (fonts load from Google Fonts over HTTPS; everything else is local).
 
 ## Deploying to oss.vicente.services/whatsapp-cli
 
-This site is meant to be published at `oss.vicente.services/whatsapp-cli`,
-alongside the other project pages hosted from the `vicente.services/website`
-repo (see `sites/oss/` there — that's how `dspy.rb`'s docs are published
-under `oss.vicente.services/dspy.rb`).
+This site is published at `oss.vicente.services/whatsapp-cli` by the
+`vicente.services/website` repo's `bin/assemble-sites` script, the same
+mechanism that publishes `dspy.rb`'s docs under `oss.vicente.services/dspy.rb`.
 
-**The exact publish step from this repo into that one is not wired up yet.**
-The known-working pattern, based on how `dspy.rb` publishes today:
+That script expects this repo as a sibling checkout: `../whatsapp-cli` next
+to `website/`. It copies `website/` (this directory, verbatim — no build
+step) into `dist/oss.vicente.services/whatsapp-cli/`, then `website`'s
+Dockerfile bakes `dist/` into the Fly image that serves `oss.vicente.services`.
 
-1. Build or copy this directory's output into the `website` repo, under a
-   path that maps to `oss.vicente.services/whatsapp-cli` (mirroring the
-   `dist/oss.vicente.services/dspy.rb/` layout observed there).
-2. Deploy the `website` repo as usual (it runs on Fly.io — see that repo's
-   `fly.toml` and `README.md`).
+To publish an update:
 
-Until this is confirmed and scripted, treat step 1 as **manual**: copy this
-directory's contents into place in the `website` repo, verify the page
-renders under `/whatsapp-cli`, then deploy that repo. If you formalize this
-(a script, a CI job, a git submodule), update this section — the workflow
-described here is what worked at the time of writing, not a guarantee of
-how the pipeline works long-term.
+```bash
+# from a checkout of vicente.services/website, with whatsapp-cli checked
+# out as a sibling directory:
+./bin/assemble-sites
+./bin/verify-assembled-sites   # sanity checks before deploying
+# then deploy the website repo as usual (Fly.io — see its fly.toml)
+```
+
+`bin/assemble-sites` records this repo's commit SHA (and the other sites')
+in `dist/BUILD-METADATA.txt`, and can be pinned to a specific commit with
+`WHATSAPP_CLI_SHA=<sha>` / pointed at a different checkout with
+`WHATSAPP_CLI_SITE_DIR=<path>`.
