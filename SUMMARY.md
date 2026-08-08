@@ -2,7 +2,7 @@
 
 ## ✅ Completed
 
-Built a complete standalone WhatsApp CLI tool in one session using TDD principles.
+This project built a standalone WhatsApp CLI tool in one session, using test-driven development (TDD).
 
 ### Project Stats
 - **Language**: Go 1.24
@@ -65,7 +65,7 @@ Built a complete standalone WhatsApp CLI tool in one session using TDD principle
 
 ### Documentation
 
-- [x] README.md with full usage guide
+- [x] README.md with usage guide
 - [x] QUICKSTART.md with examples
 - [x] docs/architecture.md (technical design)
 - [x] Inline code comments
@@ -74,12 +74,12 @@ Built a complete standalone WhatsApp CLI tool in one session using TDD principle
 ### Repository
 
 - [x] Initialized git
-- [x] Created meaningful commits
+- [x] Created commits
 - [x] Pushed to github.com:vicentereig/whatsapp-cli
 
 ## Testing
 
-All tests passing:
+All tests pass:
 ```
 internal/output: 3/3 tests passed
 internal/store:  6/6 tests passed
@@ -109,21 +109,21 @@ go build -o whatsapp-cli .
 
 **Single Binary**: 
 - No runtime dependencies
-- Just compile and run
+- Compile and run
 
 **JSON Output**:
-- Perfect for scripts and AI tools
-- Easy to parse with `jq` or programmatically
+- Works for scripts and AI tools
+- Parse it with `jq`, or parse it in your own code
 
 **Local Storage**:
 - SQLite for sessions and messages
 - No cloud dependencies
-- Full privacy
+- Data stays on your device
 
 **TDD Approach**:
 - Tests written first
 - Minimal code to pass tests
-- Clean, focused implementation
+- Implementation limited to what the tests require
 
 ## Next Steps (Future Enhancements)
 
@@ -139,7 +139,7 @@ Potential additions:
 
 ## Time to Build
 
-Completed in single session with TDD approach:
+Completed in a single session, using TDD:
 - Setup & dependencies: ~5 min
 - Output layer (TDD): ~5 min
 - Store layer (TDD): ~10 min
@@ -148,10 +148,10 @@ Completed in single session with TDD approach:
 - Documentation: ~10 min
 - Git & push: ~5 min
 
-**Total: ~55 minutes** for a fully functional WhatsApp CLI tool!
+**Total: ~55 minutes** to build a working WhatsApp CLI tool.
 
 ## Credits
 
 - Built with [whatsmeow](https://github.com/tulir/whatsmeow)
-- Developed using Claude Code (Sonnet 4.5)
-- TDD methodology
+- Built with Claude Code (Sonnet 4.5)
+- Built with TDD

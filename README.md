@@ -1,6 +1,6 @@
 # WhatsApp CLI - Complete Reference
 
-> **For Humans & LLMs**: This document contains comprehensive information about the WhatsApp CLI tool, including installation, usage, API reference, examples, architecture, and troubleshooting. It is designed to be parsed by both humans and large language models.
+> **For Humans & LLMs**: This document covers the WhatsApp CLI tool: installation, usage, the API reference, examples, architecture, and troubleshooting. Humans and large language models can both read it.
 
 **Version**: 1.3.2
 **Repository**: https://github.com/vicentereig/whatsapp-cli
@@ -34,7 +34,7 @@
 
 ### What is WhatsApp CLI?
 
-A standalone command-line interface for WhatsApp built on the WhatsApp Web multidevice protocol. Every command returns structured JSON output, making it ideal for:
+WhatsApp CLI is a standalone command-line tool for WhatsApp. It uses the WhatsApp Web multidevice protocol. Every command returns structured JSON output. Use it for:
 
 - **Automation**: Shell scripts, cron jobs, CI/CD pipelines
 - **AI Integration**: Codex, Claude Code, GPT-based tools
@@ -128,12 +128,12 @@ go install github.com/vicentereig/whatsapp-cli@latest
 
 ### Release & Distribution Notes
 
-- Version tags use semantic versioning (`vMAJOR.MINOR.PATCH`). Use a specific tag (e.g., `v1.0.0`) with `go install github.com/vicentereig/whatsapp-cli@v1.0.0` for reproducible builds.
-- Pre-built artifacts for Linux/macOS/Windows are published on the [GitHub Releases](https://github.com/vicentereig/whatsapp-cli/releases) page. Each archive is paired with SHA-256 entries inside `checksums.txt`; run `shasum -a 256 -c checksums.txt --ignore-missing` to verify before installing.
-- Binaries are named `whatsapp-cli-<os>-<arch>` (Windows adds `.exe`). After extraction, mark them executable (`chmod +x`) and place them somewhere in your `PATH` such as `/usr/local/bin/whatsapp-cli`.
-- Each uploaded file (including `checksums.txt`) also has Sigstore cosign signatures (`.sig`) and certificates (`.pem`). To verify, run `cosign verify-blob --certificate <file>.pem --signature <file>.sig <file>`; GitHub Actions uses OIDC identities, so you can enforce provenance on verification.
-- To build from source, follow Method 3. That path is ideal when you want to audit the code, tweak compilation flags, or test changes before tagging a release.
-- Maintainers can follow `docs/RELEASE.md` for the step-by-step process that drives `go install`, source builds, and GitHub Release automation.
+- Version tags use semantic versioning (`vMAJOR.MINOR.PATCH`). For reproducible builds, use a specific tag, for example `v1.0.0`, with `go install github.com/vicentereig/whatsapp-cli@v1.0.0`.
+- The [GitHub Releases](https://github.com/vicentereig/whatsapp-cli/releases) page has pre-built artifacts for Linux, macOS, and Windows. Each archive has a matching SHA-256 entry in `checksums.txt`. Before you install, run `shasum -a 256 -c checksums.txt --ignore-missing` to verify the archive.
+- Binaries use the name `whatsapp-cli-<os>-<arch>` (Windows adds `.exe`). After you extract the file, mark it executable with `chmod +x` and place it in your `PATH`, for example `/usr/local/bin/whatsapp-cli`.
+- Each uploaded file, including `checksums.txt`, also has a Sigstore cosign signature (`.sig`) and certificate (`.pem`). To verify a file, run `cosign verify-blob --certificate <file>.pem --signature <file>.sig <file>`. GitHub Actions uses OIDC identities, so you can enforce provenance during verification.
+- To build from source, follow Method 3. Use this method to audit the code, change compilation flags, or test changes before you tag a release.
+- Maintainers can follow the steps in `docs/RELEASE.md`. It covers `go install`, source builds, and GitHub Release automation.
 
 ---
 
@@ -167,7 +167,7 @@ whatsapp-cli auth
 
 ### Step 2: Sync Messages
 
-Before you can list or search messages, you need to sync them from WhatsApp:
+Before you list or search messages, sync them from WhatsApp:
 
 ```bash
 # Start syncing messages (run this in the background or a separate terminal)
@@ -182,7 +182,7 @@ whatsapp-cli sync
 4. Stores everything in `./store/messages.db`
 5. Runs until you press Ctrl+C
 
-**Tip**: Run sync in a tmux/screen session or as a background service to continuously receive messages.
+**Tip**: Run sync in a tmux or screen session, or as a background service, so it keeps receiving messages.
 
 ### Step 3: Basic Operations
 
@@ -277,12 +277,12 @@ whatsapp-cli auth
 
 ### Command: `sync`
 
-**⚠️ IMPORTANT**: This command must be run to populate the message database. Without running sync, `messages list` and `messages search` will return empty results.
+**⚠️ IMPORTANT**: Run this command to fill the message database. If you do not run sync, `messages list` and `messages search` return empty results.
 
-Continuously sync messages from WhatsApp to local database. This command:
+Sync messages from WhatsApp to the local database continuously. This command:
 - Downloads message history from WhatsApp servers
-- Receives new incoming messages in real-time
-- Stores all messages in SQLite database
+- Receives new messages in real time
+- Stores all messages in the SQLite database
 - Runs until you press Ctrl+C
 
 **Syntax:**
@@ -310,9 +310,9 @@ whatsapp-cli sync
 - Processes `*events.Message` for real-time messages
 - Processes `*events.HistorySync` for message history batches
 - Stores all messages in `store/messages.db`
-- Updates progress to stderr (doesn't interfere with JSON output)
-- Runs indefinitely until interrupted (Ctrl+C)
-- Gracefully disconnects on exit
+- Sends progress to stderr (does not affect JSON output)
+- Runs until interrupted (Ctrl+C)
+- Disconnects on exit
 
 **Progress Output (stderr):**
 ```
@@ -350,15 +350,15 @@ kill -INT <pid>
 **Use Cases:**
 1. **Initial Setup**: Run once to download all message history
 2. **Continuous Sync**: Run as background service to receive messages
-3. **Periodic Sync**: Run via cron to update messages periodically
+3. **Periodic Sync**: Run via cron to update messages on a schedule
 4. **Development**: Run in terminal while testing queries
 
 **Notes:**
-- Message history sync may take time depending on message count
-- Duplicate messages are handled by SQLite PRIMARY KEY constraints
-- Media files are NOT downloaded, only metadata (type, filename, URL)
-- Connection stays alive indefinitely until interrupted
-- Safe to restart - won't duplicate messages
+- Message history sync can take time. The duration depends on the number of messages.
+- SQLite PRIMARY KEY constraints prevent duplicate messages.
+- The CLI does not download media files. It stores only metadata: type, filename, and URL.
+- The connection stays open until you interrupt it.
+- You can restart the sync safely. It does not create duplicate messages.
 
 ---
 
@@ -631,7 +631,7 @@ whatsapp-cli send --to 1234567890 --message "Server status: $(uptime)"
 - Supports Unicode (emojis, international characters)
 
 **Limitations:**
-- Send command currently supports text only (download attachments via `media download`)
+- The `send` command supports text messages only. To download attachments, use `media download`.
 - No delivery/read receipt information returned
 - Maximum message length: WhatsApp's standard limit (~65,536 characters)
 
@@ -639,7 +639,7 @@ whatsapp-cli send --to 1234567890 --message "Server status: $(uptime)"
 
 ### Command: `media download`
 
-Download media attachments (images, videos, audio, documents) that were synced into the local database.
+Download media attachments (images, videos, audio, documents) that sync stored in the local database.
 
 **Syntax:**
 ```bash
@@ -655,9 +655,9 @@ whatsapp-cli media download --message-id ID [--chat JID] [--output PATH]
 | `--output` | string | No | Destination file or directory (defaults to auto-structured path) |
 
 **Default storage:**
-- Media is stored next to the SQLite databases under `STORE/media/{chat}/{message}/{media_type}/filename`
-- Paths are sanitized automatically
-- If `--output` points to a directory, the original filename (or message ID-based fallback) is used
+- The CLI stores media next to the SQLite databases, under `STORE/media/{chat}/{message}/{media_type}/filename`
+- The CLI sanitizes paths automatically
+- If `--output` points to a directory, the CLI uses the original filename (or a name based on the message ID)
 
 **Return value:**
 ```json
@@ -689,16 +689,16 @@ whatsapp-cli media download --message-id XYZ987 --chat 1234567890@s.whatsapp.net
 ```
 
 **Notes:**
-- Requires that `whatsapp-cli sync` has captured the message metadata
-- The sync loop downloads media concurrently in the background without blocking new messages
-- Re-running the command overwrites the existing file with a fresh download
-- Errors include metadata issues (expired link, missing direct path) or filesystem permissions
+- Requires that `whatsapp-cli sync` captured the message metadata first
+- The sync loop downloads media in the background, without blocking new messages
+- If you run the command again, it overwrites the existing file with a fresh download
+- Errors include metadata issues (an expired link or a missing direct path) or file permission problems
 
 ---
 
 ## JSON Response Format
 
-All commands return JSON in this standardized format:
+All commands return JSON in this format:
 
 ### Success Response
 
@@ -1020,7 +1020,7 @@ interface Chat {
 
 ### JID (Jabber ID) Format
 
-WhatsApp uses JIDs to uniquely identify chats:
+WhatsApp uses JIDs to identify chats:
 
 | Type | Format | Example |
 |------|--------|---------|
@@ -1065,7 +1065,7 @@ whatsapp-cli --store /var/lib/whatsapp chats list
   - Contact information
   - Session tokens
 - **Persistence**: ~20 days before re-authentication required
-- **Security**: Contains sensitive data, protect with file permissions
+- **Security**: Contains sensitive data. Protect it with file permissions.
 
 **Recommended Permissions:**
 ```bash
@@ -1267,7 +1267,7 @@ go build -ldflags="-s -w" .         # ~15MB
 upx --best --lzma whatsapp-cli      # ~5MB
 ```
 
-For detailed technical architecture, see [docs/architecture.md](docs/architecture.md).
+For more about the architecture, see [docs/architecture.md](docs/architecture.md).
 
 ---
 
@@ -1306,7 +1306,7 @@ For detailed technical architecture, see [docs/architecture.md](docs/architectur
   "error": "invalid JID format"
 }
 ```
-**Solution:** Ensure JID format is correct (`phone@s.whatsapp.net` or `id@g.us`)
+**Solution:** Use the correct JID format (`phone@s.whatsapp.net` or `id@g.us`)
 
 #### Database Locked
 ```json
@@ -1331,7 +1331,7 @@ For detailed technical architecture, see [docs/architecture.md](docs/architectur
 
 ### Authentication Issues
 
-**Problem**: QR code doesn't appear
+**Problem**: QR code does not appear
 
 ```bash
 # Check terminal supports UTF-8
@@ -1346,7 +1346,7 @@ QRSIZE=small whatsapp-cli auth
 
 - WhatsApp sessions expire after ~20 days
 - Re-run `whatsapp-cli auth`
-- Sessions also expire if you unlink device from phone
+- Sessions also expire if you unlink the device from the phone
 
 ### Connection Issues
 
@@ -1365,13 +1365,13 @@ whatsapp-cli --store /tmp/wa-test auth
 
 **Problem**: "WebSocket connection failed"
 
-- Corporate firewalls may block WSS
-- VPN may interfere with connection
-- Try from different network
+- Corporate firewalls can block WSS
+- A VPN can interfere with the connection
+- Try a different network
 
 ### WhatsApp Web Version Bumps (405 / close 1006)
 
-WhatsApp occasionally requires a newer desktop/web build. When that happens, the bundled `whatsmeow` dependency logs `Client outdated (405)` and immediately closes the websocket with code `1006`, so `whatsapp-cli` dies right after scanning the QR.
+WhatsApp sometimes requires a newer desktop or web build. When that happens, the bundled `whatsmeow` dependency logs `Client outdated (405)`. It then closes the websocket with code `1006`. As a result, `whatsapp-cli` stops right after you scan the QR code.
 
 To fix it:
 
@@ -1384,9 +1384,9 @@ To fix it:
    ```bash
    go build -o whatsapp-cli .
    ```
-3. **Verify:** Run `./whatsapp-cli version` followed by `./whatsapp-cli auth` or `./whatsapp-cli sync`. You should see `✓ Connected to WhatsApp` without any `Client outdated (405)` messages.
+3. **Verify:** Run `./whatsapp-cli version`, then `./whatsapp-cli auth` or `./whatsapp-cli sync`. You will see `✓ Connected to WhatsApp` with no `Client outdated (405)` messages.
 
-If the upstream library has not yet released a new version, monitor `tulir/whatsmeow` issues for `Client outdated (405)` reports; once a fix lands, repeat the steps above to update your local binary.
+If the upstream library does not yet have a new version, watch the `tulir/whatsmeow` issues for `Client outdated (405)` reports. Once a fix lands, repeat the steps above to update your local binary.
 
 ### Database Issues
 
@@ -1421,14 +1421,14 @@ sqlite3 store/messages.db "DELETE FROM messages WHERE timestamp < datetime('now'
 
 **Problem**: Messages not appearing in searches
 
-- CLI only searches messages stored locally
-- Messages received before CLI was running are not stored
-- Re-sync by listing messages from specific chats
+- The CLI searches only messages stored locally
+- Messages received before the CLI was running are not stored
+- To re-sync, list messages from specific chats
 
-**Problem**: Can't send to group
+**Problem**: Cannot send to a group
 
-- Must use group JID (ending in `@g.us`), not phone number
-- Get group JID from `chats list` command
+- Use the group JID (it ends in `@g.us`), not a phone number
+- Get the group JID from the `chats list` command
 
 ### Performance Issues
 
@@ -1480,13 +1480,13 @@ go build -o whatsapp-cli-dev .
 
 ### Building with a Local Module Cache
 
-If your environment can't write to the global Go module cache (common in sandboxes or CI), point `GOMODCACHE` to a writable directory within the repo before building:
+Some environments, for example sandboxes or CI systems, cannot write to the global Go module cache. If your environment has this limit, point `GOMODCACHE` to a writable directory in the repository before you build:
 
 ```bash
 GOMODCACHE=$(pwd)/.gomodcache go build ./...
 ```
 
-This command compiles the full project and stores downloaded modules under `.gomodcache`, keeping the workspace self-contained.
+This command compiles the full project and stores downloaded modules under `.gomodcache`. The workspace then stays self-contained.
 
 ### Running Tests
 
@@ -1557,9 +1557,9 @@ func TestNewCommand(t *testing.T) {
 Follow TDD (Test-Driven Development):
 
 1. **Write test first**
-2. **Run test (should fail)**
+2. **Run test (it fails)**
 3. **Implement feature**
-4. **Run test (should pass)**
+4. **Run test (it passes)**
 5. **Refactor**
 
 **Example:**
@@ -1584,52 +1584,52 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
 ### General
 
 **Q: Is this an official WhatsApp tool?**
-A: No, this is a third-party tool using the unofficial WhatsApp Web protocol via whatsmeow.
+A: No. This is a third-party tool. It uses the unofficial WhatsApp Web protocol, through the whatsmeow library.
 
 **Q: Can I use this with WhatsApp Business?**
-A: Yes, works with both personal and business accounts.
+A: Yes. It works with personal and business accounts.
 
 **Q: Does this work on multiple devices simultaneously?**
-A: Yes, WhatsApp supports up to 5 linked devices.
+A: Yes. WhatsApp supports up to 5 linked devices.
 
 ### Features
 
 **Q: Can I send images/videos?**
-A: Not yet. Currently text-only. Media support planned for future release.
+A: Not yet. The CLI currently sends text only. Media support is planned for a future release.
 
 **Q: Can I create/manage groups?**
-A: Not yet. Read-only access to groups currently.
+A: Not yet. The CLI currently gives read-only access to groups.
 
 **Q: Can I see delivery/read receipts?**
-A: Not in current version. Feature planned for future release.
+A: Not in the current version. This feature is planned for a future release.
 
 **Q: Can I receive real-time messages?**
-A: Yes! Run `whatsapp-cli sync` to continuously receive and store messages. Run it in the background or tmux session.
+A: Yes. Run `whatsapp-cli sync` to receive and store messages continuously. Run it in the background or in a tmux session.
 
 ### Technical
 
 **Q: Why Go instead of Python/Node.js?**
-A: Go provides single binary distribution, better performance, and whatsmeow is written in Go.
+A: Go gives single-binary distribution and strong performance. Also, whatsmeow is written in Go.
 
 **Q: Can I run this in Docker?**
-A: Yes, but QR code authentication requires terminal access. Use `-it` flags for interactive mode.
+A: Yes, but QR code authentication needs terminal access. Use the `-it` flags for interactive mode.
 
 **Q: Does it support proxy/VPN?**
-A: Respects system proxy settings. Set `HTTP_PROXY` and `HTTPS_PROXY` environment variables.
+A: The CLI respects system proxy settings. Set the `HTTP_PROXY` and `HTTPS_PROXY` environment variables.
 
 **Q: Can I access messages from before installing CLI?**
-A: Yes! When you run `whatsapp-cli sync`, it downloads message history from WhatsApp servers. The amount of history depends on WhatsApp's server-side retention.
+A: Yes. When you run `whatsapp-cli sync`, it downloads message history from WhatsApp servers. The amount of history depends on how long WhatsApp retains it on its servers.
 
 ### Privacy & Security
 
 **Q: Is my data safe?**
-A: All data stored locally. No cloud sync. Protect your `store/` directory.
+A: The CLI stores all data locally, with no cloud sync. Protect your `store/` directory.
 
 **Q: Can WhatsApp detect/ban this?**
-A: Uses official WhatsApp Web protocol. Risk is minimal but use at own discretion.
+A: The CLI uses the official WhatsApp Web protocol. The risk is low, but use it at your own discretion.
 
 **Q: Is end-to-end encryption maintained?**
-A: Yes, all messages are E2E encrypted using WhatsApp's protocol.
+A: Yes. WhatsApp's protocol encrypts all messages end-to-end.
 
 ---
 
