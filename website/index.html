@@ -1,0 +1,114 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>whatsapp-cli — WhatsApp, on the command line</title>
+  <meta name="description" content="A command-line tool for WhatsApp. Every command returns JSON. Sync once to a local SQLite store, then search, send, and script against it.">
+
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' fill='%23193324'/%3E%3Ctext x='16' y='23' text-anchor='middle' font-family='Georgia,serif' font-weight='700' font-size='20' fill='%23e8f0ea'%3E%3E%3C/text%3E%3C/svg%3E">
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600&family=IBM+Plex+Sans:wght@400;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+
+  <link rel="stylesheet" href="tokens.css">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <a class="skip-link" href="#main">Skip to content</a>
+
+  <header class="nav-edge" id="top">
+    <a class="wordmark" href="#top">&gt; whatsapp-cli</a>
+    <a class="cta-outline" href="https://github.com/vicentereig/whatsapp-cli">View on GitHub →</a>
+  </header>
+
+  <main id="main">
+
+    <section class="hero reveal" style="--i:0">
+      <div class="hero__inner">
+        <h1>WhatsApp, on the command line.</h1>
+        <p class="lede">Every command returns JSON. Sync once to a local SQLite store, then search, send, and script against it.</p>
+
+        <div class="install">
+          <p class="install__label">Install</p>
+          <div class="install__row">
+            <code class="install__cmd" id="install-cmd">brew install vicentereig/tap/whatsapp-cli</code>
+            <button class="copy-btn" data-copy-target="install-cmd" aria-label="Copy install command">
+              <span class="copy-btn__label">Copy</span>
+            </button>
+          </div>
+          <a class="link" href="https://github.com/vicentereig/whatsapp-cli#installation">Other install methods →</a>
+        </div>
+      </div>
+    </section>
+
+    <section class="demo-section reveal" style="--i:1" id="demo">
+      <header class="head-hang">
+        <h2>See it work</h2>
+        <p class="section-intro">Two terminals. One keeps the local store in sync. The other queries it.</p>
+      </header>
+
+      <div class="terminal" data-terminal>
+        <div class="terminal__tabs" role="tablist" aria-label="Live demo">
+          <button class="terminal__tab is-active" role="tab" aria-selected="true" id="tab-sync" aria-controls="panel-sync" data-tab="sync">whatsapp-cli sync</button>
+          <button class="terminal__tab" role="tab" aria-selected="false" tabindex="-1" id="tab-agent" aria-controls="panel-agent" data-tab="agent">chat_backup_agent.py</button>
+        </div>
+        <div class="terminal__body">
+          <pre class="terminal__panel is-active" role="tabpanel" id="panel-sync" aria-labelledby="tab-sync" data-panel="sync"><code></code></pre><pre class="terminal__panel" role="tabpanel" id="panel-agent" aria-labelledby="tab-agent" data-panel="agent" hidden><code></code></pre>
+        </div>
+      </div>
+      <p class="terminal__caption">Illustrative session over the local <code>messages</code> table. <code>chat_backup_agent.py</code> is a 40-line example script, not a whatsapp-cli subcommand — the store is plain SQLite, so it's yours to query.</p>
+    </section>
+
+    <section class="commands-section reveal" style="--i:2" id="commands">
+      <header class="head-rule">
+        <h2>What's in the box</h2>
+      </header>
+
+      <table class="spec-sheet tnum">
+        <thead>
+          <tr><th>Command</th><th>What it does</th><th>Flags</th></tr>
+        </thead>
+        <tbody>
+          <tr><td><code>auth</code></td><td>Pair with your phone via QR code.</td><td class="muted">—</td></tr>
+          <tr><td><code>sync</code></td><td>Mirror new messages into the local store. Runs until Ctrl+C.</td><td class="muted">—</td></tr>
+          <tr><td><code>messages list</code></td><td>List stored messages, newest first.</td><td class="muted"><code>--chat --limit --page</code></td></tr>
+          <tr><td><code>messages search</code></td><td>Full-text search across stored messages.</td><td class="muted"><code>--query --limit --page</code></td></tr>
+          <tr><td><code>contacts search</code></td><td>Search contacts by name or number.</td><td class="muted"><code>--query</code></td></tr>
+          <tr><td><code>chats list</code></td><td>List synced chats by recent activity.</td><td class="muted"><code>--query --limit --page</code></td></tr>
+          <tr><td><code>send</code></td><td>Send a text message.</td><td class="muted"><code>--to --message</code></td></tr>
+          <tr><td><code>media download</code></td><td>Download a message's media attachment.</td><td class="muted"><code>--message-id --chat --output</code></td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section class="credits-section reveal" style="--i:3" id="credits">
+      <p class="inline-head">Noticed elsewhere</p>
+      <aside class="proof-margin">
+        <blockquote class="quote">&ldquo;Heavily inspired by whatsapp-cli by Vicente Reig.&rdquo;</blockquote>
+        <p class="attribution muted">
+          — Credits, <a href="https://github.com/openclaw/wacli#credits">openclaw/wacli</a><br>
+          created by <a href="https://github.com/steipete">@steipete</a>
+        </p>
+        <p class="aside-note">The sincerest fork is a credits section.</p>
+      </aside>
+    </section>
+
+    <aside class="sticky-cta" data-sticky-cta>
+      <a class="link" href="#install-cmd">Install →</a>
+    </aside>
+
+  </main>
+
+  <footer class="foot-dense mono">
+    <p>whatsapp-cli. MIT licensed. Built with Go and whatsmeow.
+    <span class="tnum">e3a2d86</span>, 2026-08-08.
+    Source, issues, and the contributing guide are on
+    <a href="https://github.com/vicentereig/whatsapp-cli">GitHub</a>.
+    Not affiliated with WhatsApp or Meta.</p>
+  </footer>
+
+  <script src="demo.js"></script>
+</body>
+</html>

@@ -1,0 +1,11 @@
+{
+  "scanned": "2026-08-08",
+  "findings": {
+    "font_stack": null,
+    "palette": null,
+    "motion_library": null,
+    "spacing_scale": null,
+    "framework": "none (pure Go CLI repo; no prior web assets)"
+  },
+  "note": "First Hallmark run for this project. Nothing to preserve — full Hallmark stack introduced under website/."
+}
