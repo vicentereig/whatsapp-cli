@@ -12,7 +12,7 @@ All notable changes to this project will be documented in this file.
 
 ### Improved
 
-- Added dependency injection and sturdier CLI command wiring to reduce runtime brittleness.
+- Added dependency injection and more reliable CLI command wiring to reduce runtime failures.
 - Added image sending support to `send`.
 - Added standard CI on pushes and pull requests so test coverage runs outside release tags.
 

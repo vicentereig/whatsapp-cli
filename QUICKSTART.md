@@ -70,16 +70,16 @@ if (result.success) {
 
 ## Storage
 
-Session and messages stored in `./store/`:
-- `whatsapp.db` - WhatsApp session (don't share!)
+The CLI stores the session and messages in `./store/`:
+- `whatsapp.db` - WhatsApp session (keep this file private)
 - `messages.db` - Message history
 
 ## Tips
 
-- **Authentication lasts ~20 days** - no need to scan QR every time
-- **Phone numbers**: Can use just the number (e.g., `1234567890`) for individuals
-- **Groups**: Must use full JID (e.g., `123456789@g.us`) - get from chats list
-- **JSON parsing**: All commands return JSON - use `jq` or parse programmatically
+- **Authentication lasts about 20 days.** You do not need to scan the QR code each time.
+- **Phone numbers**: For an individual contact, you can use the number alone, for example `1234567890`.
+- **Groups**: You must use the full JID, for example `123456789@g.us`. Get the JID from the chat list.
+- **JSON parsing**: Every command returns JSON. Use `jq`, or parse the output in your own code.
 
 ## Next Steps
 

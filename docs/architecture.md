@@ -2,7 +2,7 @@
 
 ## Overview
 
-Standalone Go CLI tool built directly on top of `whatsmeow` for WhatsApp access via command line. Designed to be used by Codex/Claude Code and other automation tools.
+WhatsApp CLI is a standalone Go program built on `whatsmeow` for WhatsApp access from the command line. Codex, Claude Code, and other automation tools can use it.
 
 ## Architecture
 
@@ -18,11 +18,11 @@ Standalone Go CLI tool built directly on top of `whatsmeow` for WhatsApp access 
 
 ## Key Advantages
 
-- **Single binary**: No Python/Node dependencies, just compile and run
-- **Direct access**: No HTTP middleware, queries directly against WhatsApp
-- **Reuse existing code**: Most logic from existing `whatsapp-mcp` bridge can be adapted
-- **JSON output**: Easy for Codex/Claude Code to parse
-- **Same authentication**: QR code on first run, persistent session after
+- **Single binary**: no Python or Node.js dependency. Compile and run it.
+- **Direct access**: no HTTP middleware. The CLI queries WhatsApp directly.
+- **Reuse code**: you can adapt most of the logic from the `whatsapp-mcp` bridge.
+- **JSON output**: Codex and Claude Code can parse it directly.
+- **Same authentication**: a QR code on first run, then a persistent session.
 
 ## Project Structure
 
@@ -79,7 +79,7 @@ whatsapp-cli media download --message-id ID --chat-jid JID
 
 ## Output Format
 
-All commands output JSON for easy parsing:
+All commands print output as JSON:
 
 ```json
 {
@@ -135,12 +135,12 @@ if client.Store.ID == nil {
 ```
 
 **What happens:**
-1. CLI detects no session in `store/whatsapp.db`
-2. Generates QR code and displays it in terminal
-3. User scans with WhatsApp mobile app (Settings → Linked Devices → Link a Device)
-4. WhatsApp sends session credentials via the QR code flow
-5. `whatsmeow` saves session data to SQLite automatically
-6. Done! Session persists for ~20 days
+1. The CLI detects that no session exists in `store/whatsapp.db`.
+2. It generates a QR code and shows it in the terminal.
+3. The user scans it with the WhatsApp mobile app (Settings → Linked Devices → Link a Device).
+4. WhatsApp sends session credentials through the QR code flow.
+5. `whatsmeow` saves the session data to SQLite automatically.
+6. Done. The session lasts about 20 days.
 
 ### Subsequent Logins (Session Exists)
 
@@ -156,17 +156,17 @@ else {
 ```
 
 **What happens:**
-1. CLI reads session from `store/whatsapp.db`
-2. Automatically reconnects to WhatsApp servers
-3. No QR code needed
-4. Works until session expires (~20 days)
+1. The CLI reads the session from `store/whatsapp.db`.
+2. It reconnects to WhatsApp servers automatically.
+3. It does not need a QR code.
+4. It works until the session expires, about 20 days later.
 
 ### Authentication Strategy
 
 **Hybrid approach (recommended):**
-- CLI commands auto-connect if session exists
-- If no session, show QR code inline and wait
-- Optional `--non-interactive` flag for scripts (fails if not authenticated)
+- If a session exists, CLI commands connect automatically.
+- If no session exists, the CLI shows the QR code inline and waits.
+- An optional `--non-interactive` flag supports scripts. It fails if the user is not authenticated.
 
 **Example flow:**
 ```bash
@@ -184,13 +184,13 @@ $ whatsapp-cli contacts search "John"
 
 ## Session Storage
 
-**Session is stored in SQLite** (`store/whatsapp.db`):
+**The session lives in SQLite** (`store/whatsapp.db`) and holds:
 - Device ID
 - Encryption keys
 - Registration info
 - Contact data
 
-**Message history** stored in `store/messages.db`:
+**Message history** is stored in `store/messages.db`:
 - Chats table (JID, name, last message time)
 - Messages table (ID, content, sender, timestamp, media metadata)
 - Media files stored on-demand in `store/{chat_jid}/`
@@ -222,7 +222,7 @@ go get github.com/mattn/go-sqlite3
 - Add context-aware message retrieval
 - Support all operations: read, send, search, download
 
-### 4. Build as single binary
+### 4. Build as a single binary
 ```bash
 go build -o whatsapp-cli
 ```
@@ -237,19 +237,19 @@ GOOS=windows GOARCH=amd64 go build -o whatsapp-cli.exe
 ## Data Access Patterns
 
 ### Read Operations (Direct SQLite)
-- List messages: Query `messages` table with filters
-- Search contacts: Query `chats` table
-- Get chat metadata: Join `chats` and `messages`
+- List messages: Query the `messages` table with filters.
+- Search contacts: Query the `chats` table.
+- Get chat metadata: Join the `chats` and `messages` tables.
 
 ### Write Operations (Via whatsmeow)
-- Send message: Use `client.SendMessage()`
-- Upload media: Use `client.Upload()` then send
-- Download media: Use `client.Download()`
+- Send a message: Use `client.SendMessage()`.
+- Upload media: Use `client.Upload()`, then send it.
+- Download media: Use `client.Download()`.
 
 ### Event Handling
-- Real-time message sync: Event handlers for incoming messages
-- History sync: Handle `HistorySync` events for backfill
-- Connection status: Monitor connected/disconnected events
+- Real-time message sync: Event handlers process incoming messages.
+- History sync: Handle `HistorySync` events for backfill.
+- Connection status: Monitor connect and disconnect events.
 
 ## Comparison with Existing MCP Server
 
@@ -267,8 +267,8 @@ GOOS=windows GOARCH=amd64 go build -o whatsapp-cli.exe
 
 - **Daemon mode**: Optional persistent connection for faster commands
 - **Webhook support**: HTTP callbacks for incoming messages
-- **Export functionality**: Export chats to JSON/CSV/HTML
+- **Export**: Export chats to JSON, CSV, or HTML
 - **Group management**: Create groups, manage participants
 - **Status updates**: Post and view WhatsApp status
 - **Typing indicators**: Send typing status
-- **Read receipts**: Mark messages as read/unread
+- **Read receipts**: Mark messages as read or unread
